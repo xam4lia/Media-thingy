@@ -2,7 +2,31 @@
 
 A quiet little home for your music. A personal music player with neutral grey frosted glass, a charcoal dark mode, and a clean library inspired by familiar music apps.
 
-## Open it as a website
+## Open on Cloudflare Pages
+
+Cloudflare Pages can host this app at a free `pages.dev` address. Set up the Git connection once, and later pushes to `main` deploy automatically.
+
+1. Sign in at [Cloudflare](https://dash.cloudflare.com/), then open **Workers & Pages → Create application → Pages → Import an existing Git repository**.
+2. Connect GitHub and choose **xam4lia/Media-thingy**. Use these settings:
+
+| Setting                | Value                                         |
+| ---------------------- | --------------------------------------------- |
+| Project name           | `mediathingy` (or another available name)     |
+| Production branch      | `main`                                        |
+| Framework preset       | None; enter the build settings below manually |
+| Build command          | `npm run build`                               |
+| Build output directory | `dist`                                        |
+| Root directory         | Leave blank (the repository root)             |
+
+3. Select **Save and Deploy**. Cloudflare will show the actual website address when the deployment succeeds, such as `https://mediathingy.pages.dev` if that project name is available.
+
+Use the regular `npm run build` command for this host: it produces root-relative assets, artwork, and demo audio. The separate `build:pages` command targets the GitHub Pages subdirectory.
+
+The initial GitHub authorization must happen on a device/network where GitHub access is permitted. Once deployed, the app is served entirely by Cloudflare and does not need a connection to GitHub to play music. School access still depends on the school's domain policy.
+
+Your saved songs, covers, playlists, and preferences belong to the current browser/site address. A new Cloudflare address starts with a new local library, so add your songs again there. Keep the originals on your device.
+
+## Open on GitHub Pages
 
 The ready-built website is published to the `gh-pages` branch. Enable it once in this repository's **Settings → Pages**:
 
