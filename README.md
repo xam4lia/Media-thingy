@@ -2,6 +2,25 @@
 
 A quiet little home for your music. A personal music player with frosted glass panels, soft lavender tones, and a clean library inspired by familiar music apps.
 
+## Open it as a website
+
+The ready-built website is published to the `gh-pages` branch. Enable it once in this repository's **Settings → Pages**:
+
+1. Under **Build and deployment**, choose **Deploy from a branch**.
+2. Select the **gh-pages** branch and **/(root)** folder, then **Save**.
+3. Wait for GitHub's Pages deployment to finish. The website address will be **https://xam4lia.github.io/Media-thingy/**.
+
+Visitors use the site in their browser; they do not need to download or install the source code. GitHub hosts the app, while uploaded songs remain in each visitor's browser.
+
+To publish later updates from a checkout with GitHub push access:
+
+```sh
+npm ci --cache /tmp/media-thingy-npm-cache
+npm run deploy
+```
+
+This builds the app for the `/Media-thingy/` path and updates `gh-pages` without changing the source branch. `npm run build` still builds for a site's root path, suitable for other hosts.
+
 ## Run locally
 
 Requires Node.js 22.12 or later (developed on Node 24).
