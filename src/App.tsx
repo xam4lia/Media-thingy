@@ -14,6 +14,7 @@ import {
   LoaderCircle,
   Menu,
   MoreHorizontal,
+  Moon,
   Music2,
   Pause,
   Play,
@@ -41,6 +42,7 @@ import {
 } from "./lib/library";
 import type { Track } from "./lib/library";
 import { usePlayer } from "./lib/usePlayer";
+import { useTheme } from "./lib/useTheme";
 
 const demos: Track[] = [
   {
@@ -124,7 +126,7 @@ function Artwork({
   return (
     <div
       className={`artwork ${className}`}
-      style={{ backgroundColor: track?.color ?? "#e1dbe8" }}
+      style={{ backgroundColor: track?.color ?? "var(--artwork-placeholder)" }}
     >
       {track?.artwork ? (
         <img src={track.artwork} alt="" loading="lazy" />
@@ -233,6 +235,7 @@ function Modal({
 }
 
 export default function App() {
+  const { theme, toggleTheme } = useTheme();
   const [uploaded, setUploaded] = useState<Track[]>([]);
   const [demoFavorites, setDemoFavorites] = useState<string[]>(() =>
     readSaved("media-demo-favorites", []),
@@ -627,18 +630,6 @@ export default function App() {
             </div>
           </div>
           <div className="sidebar-bottom">
-            <div className="sidebar-note">
-              <span className="note-icon">
-                <Music2 size={21} strokeWidth={1.4} />
-                <span className="little-star">✦</span>
-              </span>
-              <p>
-                Just you.
-                <br />
-                And your music.
-              </p>
-              <span>No noise. All feeling.</span>
-            </div>
             <button
               className="storage-status"
               onClick={() => setInfoOpen(true)}
@@ -651,7 +642,7 @@ export default function App() {
         </aside>
         <main className="main-panel" id="main-content">
           <header className="topbar">
-            <div className="topbar-greeting">
+            <div className="topbar-leading">
               <IconButton
                 label="Open navigation"
                 className="mobile-menu"
@@ -659,8 +650,6 @@ export default function App() {
               >
                 <Menu size={21} />
               </IconButton>
-              <Sun size={16} strokeWidth={1.5} />
-              <span>A GOOD DAY FOR GOOD MUSIC</span>
             </div>
             <div className="topbar-actions">
               <label className="search-box">
@@ -674,6 +663,16 @@ export default function App() {
                 />
                 <span className="search-key">⌕</span>
               </label>
+              <button
+                type="button"
+                className="theme-toggle"
+                aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+                title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+                onClick={toggleTheme}
+              >
+                {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+                <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+              </button>
               <button
                 className="local-avatar"
                 onClick={() => setInfoOpen(true)}
@@ -783,7 +782,6 @@ export default function App() {
                       </h2>
                       <p>Some original sounds to settle into.</p>
                     </div>
-                    <span className="subtle-label">MADE FOR THIS MOMENT</span>
                   </div>
                   <div className="album-grid">
                     {demos

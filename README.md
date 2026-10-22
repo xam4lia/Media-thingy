@@ -1,6 +1,6 @@
 # media.
 
-A quiet little home for your music. A personal music player with frosted glass panels, soft lavender tones, and a clean library inspired by familiar music apps.
+A quiet little home for your music. A personal music player with neutral grey frosted glass, a charcoal dark mode, and a clean library inspired by familiar music apps.
 
 ## Open it as a website
 
@@ -39,6 +39,7 @@ npm run preview
 
 ## Make it yours
 
+- Use the sun/moon button in the header to switch between grey glass and charcoal dark mode. It follows your device's appearance initially and remembers your choice in this browser.
 - Upload several songs at once, or drag audio files into the app.
 - Embedded tags provide song titles, artists, albums, and cover artwork; untagged songs use their filenames.
 - Listen with play/pause, seeking, volume, shuffle, and repeat. The spacebar pauses or resumes playback when a control or dialog is not focused.
@@ -58,7 +59,7 @@ npm run build
 npm run test:e2e
 ```
 
-Unit tests cover real audio metadata parsing, IndexedDB persistence, artwork, duplicate handling, favorites, and removal. Browser tests cover real decoded playback, seek and transport controls, upload persistence, playlists, validation, and mobile navigation.
+Unit tests cover real audio metadata parsing, IndexedDB persistence, artwork, duplicate handling, favorites, and removal. Browser tests cover real decoded playback, seek and transport controls, upload persistence, playlists, validation, mobile navigation, and saved light/dark appearance preferences.
 
 The browser tests use `/usr/bin/chromium` in the cloud environment. To use another installed Chromium:
 
