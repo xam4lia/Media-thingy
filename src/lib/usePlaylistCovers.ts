@@ -1,0 +1,154 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  deletePlaylistCoverBlob,
+  listPlaylistCoverBlobs,
+  preparePlaylistCover,
+  savePlaylistCoverBlob,
+} from "./playlistCovers";
+
+export type PlaylistCovers = {
+  covers: Record<string, string>;
+  loading: boolean;
+  busyId: string | null;
+  error: string | null;
+  clearError(): void;
+  setCover(playlistId: string, file: File): Promise<void>;
+  removeCover(playlistId: string): Promise<void>;
+};
+
+/** Object URLs are session-only; the resized image bytes are persisted in IndexedDB. */
+export function usePlaylistCovers(): PlaylistCovers {
+  const [covers, setCovers] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const urls = useRef<Record<string, string>>({});
+  const generation = useRef(0);
+  const mounted = useRef(false);
+  const hydration = useRef<Promise<void>>(Promise.resolve());
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const sequence = useRef(0);
+  const pending = useRef(new Map<number, { id: string; generation: number }>());
+
+  useEffect(() => {
+    const current = ++generation.current;
+    mounted.current = true;
+    setLoading(true);
+    setBusyId(null);
+    setError(null);
+    hydration.current = listPlaylistCoverBlobs()
+      .then((blobs) => {
+        if (!mounted.current || generation.current !== current) return;
+        const next = { ...urls.current };
+        const created: string[] = [];
+        try {
+          for (const [id, blob] of Object.entries(blobs)) {
+            if (next[id]) continue;
+            next[id] = URL.createObjectURL(blob);
+            created.push(next[id]);
+          }
+        } catch (cause) {
+          created.forEach((url) => URL.revokeObjectURL(url));
+          throw cause;
+        }
+        urls.current = next;
+        setCovers({ ...next });
+      })
+      .catch((cause: unknown) => {
+        if (mounted.current && generation.current === current) {
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : "Your saved playlist covers could not be loaded. Try refreshing the page.",
+          );
+        }
+      })
+      .finally(() => {
+        if (mounted.current && generation.current === current)
+          setLoading(false);
+      });
+    return () => {
+      mounted.current = false;
+      ++generation.current;
+      Object.values(urls.current).forEach((url) => URL.revokeObjectURL(url));
+      urls.current = {};
+    };
+  }, []);
+
+  const clearError = useCallback(() => setError(null), []);
+
+  const enqueue = useCallback(
+    (
+      id: string,
+      action: (currentGeneration: number) => Promise<void>,
+    ): Promise<void> => {
+      const current = generation.current;
+      const token = ++sequence.current;
+      pending.current.set(token, { id, generation: current });
+      const refreshBusy = () => {
+        if (!mounted.current || generation.current !== current) return;
+        setBusyId(
+          [...pending.current.values()].find(
+            (item) => item.generation === current,
+          )?.id ?? null,
+        );
+      };
+      if (mounted.current) setError(null);
+      refreshBusy();
+      // Serializing mutations also makes selection-then-removal and rapid replacements deterministic.
+      // Finish initial hydration first: even a failed first selection must retain the saved cover.
+      const operation = queue.current
+        .then(() => hydration.current)
+        .then(() => action(current));
+      queue.current = operation.catch(() => undefined);
+      return operation.finally(() => {
+        pending.current.delete(token);
+        refreshBusy();
+      });
+    },
+    [],
+  );
+
+  const setCover = useCallback(
+    (playlistId: string, file: File): Promise<void> =>
+      enqueue(playlistId, async (current) => {
+        const blob = await preparePlaylistCover(file);
+        // Create the display URL before committing; failures leave the existing cover intact.
+        const url = URL.createObjectURL(blob);
+        try {
+          await savePlaylistCoverBlob(playlistId, blob);
+        } catch (cause) {
+          URL.revokeObjectURL(url);
+          throw cause;
+        }
+        if (!mounted.current || generation.current !== current) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        const previous = urls.current[playlistId];
+        urls.current = { ...urls.current, [playlistId]: url };
+        setCovers({ ...urls.current });
+        setError(null);
+        if (previous) URL.revokeObjectURL(previous);
+      }),
+    [enqueue],
+  );
+
+  const removeCover = useCallback(
+    (playlistId: string): Promise<void> =>
+      enqueue(playlistId, async (current) => {
+        await deletePlaylistCoverBlob(playlistId);
+        if (!mounted.current || generation.current !== current) return;
+        const previous = urls.current[playlistId];
+        const next = { ...urls.current };
+        delete next[playlistId];
+        urls.current = next;
+        setCovers({ ...next });
+        setError(null);
+        if (previous) URL.revokeObjectURL(previous);
+      }),
+    [enqueue],
+  );
+
+  return { covers, loading, busyId, error, clearError, setCover, removeCover };
+}

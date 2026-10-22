@@ -3,6 +3,7 @@ import type { DragEvent, ReactNode } from "react";
 import {
   ArrowDownToLine,
   ArrowRight,
+  Camera,
   Check,
   ChevronDown,
   Disc3,
@@ -13,6 +14,7 @@ import {
   ListMusic,
   LoaderCircle,
   Menu,
+  Minus,
   MoreHorizontal,
   Moon,
   Music2,
@@ -22,6 +24,7 @@ import {
   Repeat,
   Repeat1,
   Search,
+  Settings2,
   ShieldCheck,
   Shuffle,
   SkipBack,
@@ -43,6 +46,13 @@ import {
 import type { Track } from "./lib/library";
 import { usePlayer } from "./lib/usePlayer";
 import { useTheme } from "./lib/useTheme";
+import {
+  DEFAULT_SCALE,
+  MAX_SCALE,
+  MIN_SCALE,
+  useDisplayScale,
+} from "./lib/useDisplayScale";
+import { usePlaylistCovers } from "./lib/usePlaylistCovers";
 
 const demos: Track[] = [
   {
@@ -236,6 +246,8 @@ function Modal({
 
 export default function App() {
   const { theme, toggleTheme } = useTheme();
+  const { scale, setScale } = useDisplayScale();
+  const playlistCovers = usePlaylistCovers();
   const [uploaded, setUploaded] = useState<Track[]>([]);
   const [demoFavorites, setDemoFavorites] = useState<string[]>(() =>
     readSaved("media-demo-favorites", []),
@@ -264,16 +276,25 @@ export default function App() {
   const [deletePlaylist, setDeletePlaylist] = useState<Playlist | null>(null);
   const [queueOpen, setQueueOpen] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
-  const [infoOpen, setInfoOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [libraryLoading, setLibraryLoading] = useState(true);
   const fileInput = useRef<HTMLInputElement>(null);
+  const coverInput = useRef<HTMLInputElement>(null);
+  const coverTarget = useRef<string | null>(null);
   const dragCount = useRef(0);
   const player = usePlayer();
   const tracks = [
     ...uploaded,
     ...demos
       .filter((t) => !hiddenDemos.includes(t.id))
-      .map((t) => ({ ...t, favorite: demoFavorites.includes(t.id) })),
+      .map((t) => ({
+        ...t,
+        artwork:
+          theme === "dark"
+            ? t.artwork?.replace(/\.svg$/, "-dark.svg")
+            : t.artwork,
+        favorite: demoFavorites.includes(t.id),
+      })),
   ];
   const activePlaylist = playlists.find((p) => p.id === view);
   const notify = useCallback(
@@ -303,6 +324,12 @@ export default function App() {
       player.clearError();
     }
   }, [player.error, player.clearError, notify]);
+  useEffect(() => {
+    if (playlistCovers.error) {
+      notify(playlistCovers.error, true);
+      playlistCovers.clearError();
+    }
+  }, [playlistCovers.error, playlistCovers.clearError, notify]);
   useEffect(() => {
     const close = () => setMenuTrack(null);
     window.addEventListener("click", close);
@@ -488,6 +515,63 @@ export default function App() {
     notify("Song removed from playlist.");
   }
 
+  function chooseCover(playlistId: string) {
+    coverTarget.current = playlistId;
+    coverInput.current?.click();
+  }
+
+  async function saveCover(file: File) {
+    const playlistId = coverTarget.current;
+    if (!playlistId) return;
+    try {
+      await playlistCovers.setCover(playlistId, file);
+      notify("Playlist cover updated.");
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "This photo couldn’t be saved. Try another image.",
+        true,
+      );
+    } finally {
+      if (coverInput.current) coverInput.current.value = "";
+      coverTarget.current = null;
+    }
+  }
+
+  async function removeCover(playlistId: string) {
+    try {
+      await playlistCovers.removeCover(playlistId);
+      notify("Playlist cover removed.");
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "This cover couldn’t be removed. Please try again.",
+        true,
+      );
+    }
+  }
+
+  async function removePlaylist(playlist: Playlist) {
+    try {
+      await playlistCovers.removeCover(playlist.id);
+      const next = playlists.filter((p) => p.id !== playlist.id);
+      setPlaylists(next);
+      store("media-playlists", next);
+      setDeletePlaylist(null);
+      navigate("home");
+      notify("Playlist deleted. Your music is still here.");
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "This playlist couldn’t be deleted. Please try again.",
+        true,
+      );
+    }
+  }
+
   let visible =
     view === "library"
       ? uploaded
@@ -533,7 +617,7 @@ export default function App() {
   const closePlaylistTarget = useCallback(() => setPlaylistTarget(null), []);
   const closeDelete = useCallback(() => setDeleteTarget(null), []);
   const closeDeletePlaylist = useCallback(() => setDeletePlaylist(null), []);
-  const closeInfo = useCallback(() => setInfoOpen(false), []);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
 
   return (
     <>
@@ -614,7 +698,11 @@ export default function App() {
                     onClick={() => navigate(p.id)}
                   >
                     <span className="playlist-icon">
-                      <ListMusic size={15} />
+                      {playlistCovers.covers[p.id] ? (
+                        <img src={playlistCovers.covers[p.id]} alt="" />
+                      ) : (
+                        <ListMusic size={15} />
+                      )}
                     </span>
                     <span className="truncate">{p.name}</span>
                   </button>
@@ -632,7 +720,7 @@ export default function App() {
           <div className="sidebar-bottom">
             <button
               className="storage-status"
-              onClick={() => setInfoOpen(true)}
+              onClick={() => setSettingsOpen(true)}
             >
               <span className="status-dot" />
               Stored on this device
@@ -675,10 +763,11 @@ export default function App() {
               </button>
               <button
                 className="local-avatar"
-                onClick={() => setInfoOpen(true)}
-                aria-label="About your listening space"
+                onClick={() => setSettingsOpen(true)}
+                aria-label="Open settings"
+                title="Settings"
               >
-                <Headphones size={18} />
+                <Settings2 size={18} />
               </button>
             </div>
           </header>
@@ -857,15 +946,44 @@ export default function App() {
               <section
                 className={`collection-banner ${view === "favorites" ? "favorite-banner" : ""}`}
               >
-                <span className="collection-banner-icon">
-                  {view === "favorites" ? (
-                    <Heart size={35} strokeWidth={1.2} fill="currentColor" />
-                  ) : activePlaylist ? (
-                    <ListMusic size={37} strokeWidth={1.3} />
-                  ) : (
-                    <Library size={37} strokeWidth={1.3} />
-                  )}
-                </span>
+                {activePlaylist ? (
+                  <button
+                    className="playlist-cover-button"
+                    aria-label={`Change cover for ${activePlaylist.name}`}
+                    onClick={() => chooseCover(activePlaylist.id)}
+                    disabled={playlistCovers.busyId === activePlaylist.id}
+                  >
+                    {playlistCovers.covers[activePlaylist.id] ? (
+                      <img
+                        className="playlist-cover-image"
+                        src={playlistCovers.covers[activePlaylist.id]}
+                        alt={`Cover for ${activePlaylist.name}`}
+                      />
+                    ) : (
+                      <ListMusic size={37} strokeWidth={1.3} />
+                    )}
+                    <span className="playlist-cover-overlay">
+                      {playlistCovers.busyId === activePlaylist.id ? (
+                        <LoaderCircle className="spin" size={20} />
+                      ) : (
+                        <Camera size={20} />
+                      )}
+                      <span>
+                        {playlistCovers.busyId === activePlaylist.id
+                          ? "Saving…"
+                          : "Change cover"}
+                      </span>
+                    </span>
+                  </button>
+                ) : (
+                  <span className="collection-banner-icon">
+                    {view === "favorites" ? (
+                      <Heart size={35} strokeWidth={1.2} fill="currentColor" />
+                    ) : (
+                      <Library size={37} strokeWidth={1.3} />
+                    )}
+                  </span>
+                )}
                 <div>
                   <span className="section-eyebrow">
                     {activePlaylist
@@ -886,6 +1004,27 @@ export default function App() {
                     {totalDuration > 0 &&
                       ` · ${Math.max(1, Math.round(totalDuration / 60))} min of good company`}
                   </p>
+                  {activePlaylist && (
+                    <div className="playlist-cover-actions">
+                      <button
+                        type="button"
+                        onClick={() => chooseCover(activePlaylist.id)}
+                        disabled={playlistCovers.busyId === activePlaylist.id}
+                      >
+                        <Camera size={14} />
+                        Change cover
+                      </button>
+                      {playlistCovers.covers[activePlaylist.id] && (
+                        <button
+                          type="button"
+                          onClick={() => void removeCover(activePlaylist.id)}
+                          disabled={playlistCovers.busyId === activePlaylist.id}
+                        >
+                          Remove cover
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="collection-banner-actions">
                   {visible.length > 0 && (
@@ -1296,6 +1435,9 @@ export default function App() {
             <div className="queue-list">
               {(player.queue.length ? player.queue : tracks)
                 .filter((t) => tracks.some((existing) => existing.id === t.id))
+                .map(
+                  (t) => tracks.find((existing) => existing.id === t.id) ?? t,
+                )
                 .map((track, index) => (
                   <button
                     key={`${track.id}-${index}`}
@@ -1340,6 +1482,17 @@ export default function App() {
         className="file-input"
         aria-label="Choose audio files"
         onChange={(e) => void handleFiles(Array.from(e.target.files ?? []))}
+      />
+      <input
+        ref={coverInput}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+        className="file-input"
+        aria-label="Choose playlist cover"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void saveCover(file);
+        }}
       />
       {uploadOpen && (
         <Modal title="Add your music" close={closeUpload}>
@@ -1425,7 +1578,13 @@ export default function App() {
                 key={p.id}
                 onClick={() => addToPlaylist(p, playlistTarget)}
               >
-                <ListMusic size={20} />
+                <span className="playlist-picker-artwork">
+                  {playlistCovers.covers[p.id] ? (
+                    <img src={playlistCovers.covers[p.id]} alt="" />
+                  ) : (
+                    <ListMusic size={20} />
+                  )}
+                </span>
                 <span>
                   {p.name}
                   <small>{p.tracks.length} songs</small>
@@ -1490,16 +1649,7 @@ export default function App() {
             </button>
             <button
               className="button button-dark"
-              onClick={() => {
-                const next = playlists.filter(
-                  (p) => p.id !== deletePlaylist.id,
-                );
-                setPlaylists(next);
-                store("media-playlists", next);
-                setDeletePlaylist(null);
-                navigate("home");
-                notify("Playlist deleted. Your music is still here.");
-              }}
+              onClick={() => void removePlaylist(deletePlaylist)}
             >
               <Trash2 size={16} />
               Delete playlist
@@ -1507,25 +1657,86 @@ export default function App() {
           </div>
         </Modal>
       )}
-      {infoOpen && (
-        <Modal title="Your listening space" close={closeInfo}>
+      {settingsOpen && (
+        <Modal
+          title="Settings"
+          close={closeSettings}
+          className="settings-modal"
+        >
           <span className="modal-illustration">
-            <Headphones size={30} strokeWidth={1.3} />
+            <Settings2 size={28} strokeWidth={1.3} />
           </span>
-          <span className="section-eyebrow">A PLACE THAT’S JUST YOURS</span>
-          <h2>Your music. Your space.</h2>
-          <p>
-            Upload your own songs, make a few mixes, and stay for a while. No
-            account needed.
-          </p>
+          <span className="section-eyebrow">YOUR LISTENING SPACE</span>
+          <h2>Settings</h2>
+          <p>Make this space feel right for you.</p>
+          <section
+            className="settings-section"
+            aria-labelledby="display-heading"
+          >
+            <div className="settings-section-heading">
+              <div>
+                <h3 id="display-heading">Interface size</h3>
+                <p>Make text, artwork, and controls larger.</p>
+              </div>
+            </div>
+            <div className="scale-control">
+              <IconButton
+                label="Decrease interface size"
+                onClick={() => setScale(scale - 5)}
+                disabled={scale <= MIN_SCALE}
+              >
+                <Minus size={18} />
+              </IconButton>
+              <output htmlFor="interface-size" aria-live="polite">
+                {scale}%
+              </output>
+              <IconButton
+                label="Increase interface size"
+                onClick={() => setScale(scale + 5)}
+                disabled={scale >= MAX_SCALE}
+              >
+                <Plus size={18} />
+              </IconButton>
+            </div>
+            <input
+              id="interface-size"
+              type="range"
+              aria-label="Interface size"
+              min={MIN_SCALE}
+              max={MAX_SCALE}
+              step={5}
+              value={scale}
+              onChange={(event) => setScale(Number(event.target.value))}
+              style={
+                {
+                  "--progress": `${((scale - MIN_SCALE) / (MAX_SCALE - MIN_SCALE)) * 100}%`,
+                } as React.CSSProperties
+              }
+            />
+            <div className="scale-presets">
+              {[100, DEFAULT_SCALE, 125, 150].map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-label={`Use ${value}% interface size`}
+                  aria-pressed={scale === value}
+                  onClick={() => setScale(value)}
+                >
+                  {value}%{value === DEFAULT_SCALE && <small>Default</small>}
+                </button>
+              ))}
+            </div>
+            <p className="settings-hint">
+              Your size preference stays saved on this device.
+            </p>
+          </section>
           <div className="info-card">
             <ShieldCheck size={23} strokeWidth={1.4} />
             <div>
               <strong>At home on this device</strong>
               <p>
-                Your uploads are saved in this browser. They stay here when you
-                return, but won’t sync to other devices. Clearing browser data
-                removes this library.
+                Your songs, playlist covers, and preferences stay in this
+                browser. Clearing site data removes this library.
               </p>
             </div>
           </div>
@@ -1549,7 +1760,7 @@ export default function App() {
           <button
             className="button button-dark"
             onClick={() => {
-              setInfoOpen(false);
+              setSettingsOpen(false);
               setUploadOpen(true);
             }}
           >

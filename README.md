@@ -40,6 +40,9 @@ npm run preview
 ## Make it yours
 
 - Use the sun/moon button in the header to switch between grey glass and charcoal dark mode. It follows your device's appearance initially and remembers your choice in this browser.
+- Open **Settings** with the gear in the header to adjust **Interface size** from 100% to 150%. The default is 115%, and your percentage is remembered. The app fills the window with only a small outer margin.
+- Built-in covers and the illustrated record sleeve switch to darker artwork in dark mode.
+- Open a playlist and choose **Change cover** to pick a photo from your device. Covers are cropped to a square, saved in this browser, and shown in the playlist, sidebar, and playlist picker. JPEG, PNG, WebP, GIF, and AVIF images up to 10 MB are supported; **Remove cover** restores the default.
 - Upload several songs at once, or drag audio files into the app.
 - Embedded tags provide song titles, artists, albums, and cover artwork; untagged songs use their filenames.
 - Listen with play/pause, seeking, volume, shuffle, and repeat. The spacebar pauses or resumes playback when a control or dialog is not focused.
@@ -47,7 +50,7 @@ npm run preview
 - Search by title, artist, or album, and sort your collection.
 - Three original ambient demos are included so you can try the player before uploading. Regenerate them with `python3 scripts/generate-demo.py`.
 
-Music files are stored in **IndexedDB in this browser on this device**. Favorites and playlists also remain locally. There is no account, server upload, or cross-device sync. Clearing site data removes the saved library, so keep your original audio files. Playback support for MP3, WAV, FLAC, M4A, AAC, OGG, and other audio formats depends on the browser's codecs.
+Music files are stored in **IndexedDB in this browser on this device**. Favorites, playlists, cover images, and interface preferences also remain locally. There is no account, server upload, or cross-device sync. Clearing site data removes the saved library, so keep your original audio files. Playback support for MP3, WAV, FLAC, M4A, AAC, OGG, and other audio formats depends on the browser's codecs.
 
 Fonts, icons, artwork, and demo audio are served locally; no third-party service or API key is required.
 
@@ -59,7 +62,7 @@ npm run build
 npm run test:e2e
 ```
 
-Unit tests cover real audio metadata parsing, IndexedDB persistence, artwork, duplicate handling, favorites, and removal. Browser tests cover real decoded playback, seek and transport controls, upload persistence, playlists, validation, mobile navigation, and saved light/dark appearance preferences.
+Unit tests cover real audio metadata parsing, IndexedDB persistence, artwork, duplicate handling, favorites, and removal. Browser tests cover real decoded playback, seek and transport controls, upload persistence, playlists, validation, mobile navigation, saved light/dark appearance preferences, percentage scaling, dark artwork, and custom playlist cover persistence.
 
 The browser tests use `/usr/bin/chromium` in the cloud environment. To use another installed Chromium:
 

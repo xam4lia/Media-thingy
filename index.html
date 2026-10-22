@@ -22,6 +22,18 @@
             : window.matchMedia("(prefers-color-scheme: dark)").matches
               ? "dark"
               : "light";
+        let scale = 115;
+        try {
+          const raw = localStorage.getItem("media-ui-scale");
+          const value = raw === null ? 115 : Number(raw);
+          if (Number.isFinite(value))
+            scale = Math.round(Math.min(150, Math.max(100, value)) / 5) * 5;
+        } catch {}
+        document.documentElement.style.setProperty(
+          "--ui-scale",
+          String(scale / 100),
+        );
+        document.documentElement.dataset.uiScale = String(scale);
         document.documentElement.dataset.theme = theme;
         document.documentElement.style.colorScheme = theme;
         document.querySelector('meta[name="theme-color"]').content =
