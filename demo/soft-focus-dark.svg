@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
+  <defs>
+    <linearGradient id="sky" x2=".2" y2="1"><stop stop-color="#263143"/><stop offset=".55" stop-color="#665453"/><stop offset="1" stop-color="#423e49"/></linearGradient>
+    <linearGradient id="hill" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#3c485d"/><stop offset="1" stop-color="#5d5263"/></linearGradient>
+    <linearGradient id="front" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#303c51"/><stop offset="1" stop-color="#1e293d"/></linearGradient>
+    <radialGradient id="halo"><stop stop-color="#dcc5a6" stop-opacity=".8"/><stop offset="1" stop-color="#b9997e" stop-opacity="0"/></radialGradient>
+    <filter id="soft"><feGaussianBlur stdDeviation="13"/></filter>
+    <filter id="mist"><feGaussianBlur stdDeviation="30"/></filter>
+    <filter id="grain"><feTurbulence baseFrequency=".8" numOctaves="3" seed="9" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope=".055"/></feComponentTransfer><feBlend in="SourceGraphic" mode="soft-light"/></filter>
+  </defs>
+  <g filter="url(#grain)">
+    <path fill="url(#sky)" d="M0 0h600v600H0z"/>
+    <circle cx="402" cy="213" r="177" fill="url(#halo)"/>
+    <circle cx="402" cy="213" r="67" fill="#d9c7ac" opacity=".9"/>
+    <path d="M-45 354C93 259 112 264 250 338S449 398 645 294V650H-45Z" fill="url(#hill)" filter="url(#soft)"/>
+    <path d="M-35 459C83 403 138 426 256 465S435 482 635 384V650H-35Z" fill="url(#front)" filter="url(#soft)"/>
+    <path d="M-60 365C175 319 320 417 660 338" stroke="#9c7f7a" stroke-width="40" opacity=".48" fill="none" filter="url(#mist)"/>
+  </g>
+  <g fill="#d8e2f0" opacity=".55"><circle cx="94" cy="98" r="1.5"/><circle cx="314" cy="74" r="1"/><circle cx="501" cy="132" r="1.4"/><circle cx="154" cy="187" r="1"/><circle cx="452" cy="53" r=".8"/></g>
+</svg>
