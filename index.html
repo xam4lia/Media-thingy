@@ -3,12 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#eeeaf3" />
-    <meta name="description" content="A little space for your sound. Your own music, beautifully at home." />
+    <meta name="theme-color" content="#e6e9ec" />
+    <meta
+      name="description"
+      content="A little space for your sound. Your own music, beautifully at home."
+    />
     <link rel="icon" type="image/svg+xml" href="/Media-thingy/favicon.svg" />
     <title>media. — A space for your sound</title>
-    <script type="module" crossorigin src="/Media-thingy/assets/index-BeD7gFww.js"></script>
-    <link rel="stylesheet" crossorigin href="/Media-thingy/assets/index-xv07ZSDD.css">
+    <script>
+      (() => {
+        let saved;
+        try {
+          saved = localStorage.getItem("media-theme");
+        } catch {}
+        const theme =
+          saved === "light" || saved === "dark"
+            ? saved
+            : window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+        document.querySelector('meta[name="theme-color"]').content =
+          theme === "dark" ? "#15171b" : "#e6e9ec";
+      })();
+    </script>
+    <script type="module" crossorigin src="/Media-thingy/assets/index-C5EAeBCS.js"></script>
+    <link rel="stylesheet" crossorigin href="/Media-thingy/assets/index-DIiR9lS9.css">
   </head>
   <body>
     <div id="root"></div>
