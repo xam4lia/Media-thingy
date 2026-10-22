@@ -130,9 +130,11 @@ function time(seconds: number) {
 function Artwork({
   track,
   className = "",
+  alt = "",
 }: {
   track?: Track | null;
   className?: string;
+  alt?: string;
 }) {
   return (
     <div
@@ -140,7 +142,7 @@ function Artwork({
       style={{ backgroundColor: track?.color ?? "var(--artwork-placeholder)" }}
     >
       {track?.artwork ? (
-        <img src={track.artwork} alt="" loading="lazy" />
+        <img src={track.artwork} alt={alt} loading="lazy" />
       ) : (
         <>
           <span className="artwork-orbit" />
@@ -277,7 +279,9 @@ export default function App() {
   const [menuOpensUp, setMenuOpensUp] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Track | null>(null);
   const [deletePlaylist, setDeletePlaylist] = useState<Playlist | null>(null);
-  const [queueOpen, setQueueOpen] = useState(false);
+  const [panelView, setPanelView] = useState<"now-playing" | "queue" | null>(
+    null,
+  );
   const [mobileNav, setMobileNav] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [libraryLoading, setLibraryLoading] = useState(true);
@@ -286,6 +290,7 @@ export default function App() {
   const coverTarget = useRef<string | null>(null);
   const songCoverInput = useRef<HTMLInputElement>(null);
   const songCoverTarget = useRef<string | null>(null);
+  const panelTrigger = useRef<HTMLButtonElement | null>(null);
   const dragCount = useRef(0);
   const player = usePlayer();
   const tracks = [
@@ -660,6 +665,11 @@ export default function App() {
           : (activePlaylist?.name ?? "Your library");
   const current =
     tracks.find((t) => t.id === player.current?.id) ?? player.current;
+  const queueTracks = (player.queue.length ? player.queue : tracks)
+    .filter((track) => tracks.some((existing) => existing.id === track.id))
+    .map(
+      (track) => tracks.find((existing) => existing.id === track.id) ?? track,
+    );
   useEffect(() => {
     if (current) player.syncArtwork(current.id, current.artwork);
   }, [current?.id, current?.artwork, player.syncArtwork]);
@@ -676,6 +686,36 @@ export default function App() {
   const closeDelete = useCallback(() => setDeleteTarget(null), []);
   const closeDeletePlaylist = useCallback(() => setDeletePlaylist(null), []);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  const closeListeningPanel = useCallback(() => {
+    setPanelView(null);
+    panelTrigger.current?.focus();
+  }, []);
+  useEffect(() => {
+    if (!panelView) return;
+    const closeWithEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !document.querySelector('[role="dialog"]'))
+        closeListeningPanel();
+    };
+    document.addEventListener("keydown", closeWithEscape);
+    return () => document.removeEventListener("keydown", closeWithEscape);
+  }, [panelView, closeListeningPanel]);
+
+  function movePanelTab(event: React.KeyboardEvent<HTMLButtonElement>) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const next =
+      event.key === "Home"
+        ? "now-playing"
+        : event.key === "End"
+          ? "queue"
+          : panelView === "now-playing"
+            ? "queue"
+            : "now-playing";
+    setPanelView(next);
+    requestAnimationFrame(() =>
+      document.getElementById(`${next}-tab`)?.focus(),
+    );
+  }
 
   return (
     <>
@@ -1376,11 +1416,26 @@ export default function App() {
         </main>
         <footer className="player" aria-label="Music player">
           <div className="now-playing">
-            <Artwork track={current} />
-            <div className="now-playing-info">
-              <strong>{current?.title ?? "Find your next feeling"}</strong>
-              <span>{current?.artist ?? "Pick a song. Make a moment."}</span>
-            </div>
+            <button
+              type="button"
+              className="now-playing-open"
+              aria-label="Show now playing"
+              aria-expanded={panelView === "now-playing"}
+              aria-controls="listening-panel"
+              title="Open large song cover"
+              onClick={(event) => {
+                panelTrigger.current = event.currentTarget;
+                setPanelView(
+                  panelView === "now-playing" ? null : "now-playing",
+                );
+              }}
+            >
+              <Artwork track={current} />
+              <div className="now-playing-info">
+                <strong>{current?.title ?? "Find your next feeling"}</strong>
+                <span>{current?.artist ?? "Pick a song. Make a moment."}</span>
+              </div>
+            </button>
             {current && (
               <IconButton
                 label={`${current.favorite ? "Unfavorite" : "Favorite"} ${current.title}`}
@@ -1505,70 +1560,247 @@ export default function App() {
             <span className="player-divider" />
             <IconButton
               label="Show play queue"
-              active={queueOpen}
-              aria-expanded={queueOpen}
-              onClick={() => setQueueOpen(!queueOpen)}
+              active={panelView === "queue"}
+              aria-expanded={panelView === "queue"}
+              aria-controls="listening-panel"
+              onClick={(event) => {
+                panelTrigger.current = event.currentTarget;
+                setPanelView(panelView === "queue" ? null : "queue");
+              }}
             >
               <ListMusic size={20} />
             </IconButton>
           </div>
         </footer>
-        {queueOpen && (
-          <aside className="queue-panel" aria-label="Play queue">
-            <div className="queue-heading">
-              <div>
-                <span className="section-eyebrow">KEEP THE FEELING GOING</span>
-                <h2>Up next</h2>
+        {panelView && (
+          <aside
+            id="listening-panel"
+            className="queue-panel listening-panel"
+            aria-label={
+              panelView === "now-playing" ? "Now playing" : "Play queue"
+            }
+          >
+            <div className="listening-panel-header">
+              <div
+                className="panel-tabs"
+                role="tablist"
+                aria-label="Listening panel"
+              >
+                <button
+                  type="button"
+                  id="now-playing-tab"
+                  className="panel-tab"
+                  role="tab"
+                  aria-selected={panelView === "now-playing"}
+                  aria-controls="now-playing-tabpanel"
+                  tabIndex={panelView === "now-playing" ? 0 : -1}
+                  onClick={() => setPanelView("now-playing")}
+                  onKeyDown={movePanelTab}
+                >
+                  Now playing
+                </button>
+                <button
+                  type="button"
+                  id="queue-tab"
+                  className="panel-tab"
+                  role="tab"
+                  aria-selected={panelView === "queue"}
+                  aria-controls="queue-tabpanel"
+                  tabIndex={panelView === "queue" ? 0 : -1}
+                  onClick={() => setPanelView("queue")}
+                  onKeyDown={movePanelTab}
+                >
+                  Queue
+                </button>
               </div>
               <IconButton
-                label="Close queue"
-                onClick={() => setQueueOpen(false)}
+                label={
+                  panelView === "now-playing"
+                    ? "Close now playing"
+                    : "Close queue"
+                }
+                onClick={closeListeningPanel}
               >
                 <X size={19} />
               </IconButton>
             </div>
-            <p className="queue-description">
-              A little journey through your sound.
-            </p>
-            <div className="queue-list">
-              {(player.queue.length ? player.queue : tracks)
-                .filter((t) => tracks.some((existing) => existing.id === t.id))
-                .map(
-                  (t) => tracks.find((existing) => existing.id === t.id) ?? t,
-                )
-                .map((track, index) => (
-                  <button
-                    key={`${track.id}-${index}`}
-                    className={`queue-track ${current?.id === track.id ? "selected" : ""}`}
-                    onClick={() =>
-                      player.play(
-                        track,
-                        player.queue.length ? player.queue : tracks,
-                      )
-                    }
-                  >
-                    <Artwork track={track} />
-                    <span>
-                      <strong>{track.title}</strong>
-                      <small>{track.artist}</small>
-                    </span>
-                    {current?.id === track.id && player.playing ? (
-                      <span className="equalizer">
-                        <i />
-                        <i />
-                        <i />
+            {panelView === "now-playing" ? (
+              <div
+                className="now-playing-details"
+                role="tabpanel"
+                id="now-playing-tabpanel"
+                aria-labelledby="now-playing-tab"
+                tabIndex={0}
+              >
+                {current ? (
+                  <>
+                    <Artwork
+                      track={current}
+                      className="now-playing-large-cover"
+                      alt={`Cover for ${current.title}`}
+                    />
+                    <div className="now-playing-title-row">
+                      <div>
+                        <h2>{current.title}</h2>
+                        <p>{current.artist}</p>
+                      </div>
+                      <div className="now-playing-detail-actions">
+                        <IconButton
+                          label={`${current.favorite ? "Unfavorite" : "Favorite"} ${current.title}`}
+                          active={current.favorite}
+                          onClick={() => void favorite(current)}
+                        >
+                          <Heart
+                            size={20}
+                            fill={current.favorite ? "currentColor" : "none"}
+                          />
+                        </IconButton>
+                        <IconButton
+                          label="Change cover for playing song"
+                          disabled={songCovers.busyId !== null}
+                          onClick={() => chooseSongCover(current)}
+                        >
+                          <Camera size={19} />
+                        </IconButton>
+                      </div>
+                    </div>
+                    <div className="now-playing-status">
+                      <span
+                        className={player.playing ? "equalizer" : "paused-mark"}
+                      >
+                        {player.playing ? (
+                          <>
+                            <i />
+                            <i />
+                            <i />
+                          </>
+                        ) : (
+                          <Pause size={12} />
+                        )}
                       </span>
-                    ) : (
-                      <Play size={14} />
-                    )}
-                  </button>
-                ))}
-              {!tracks.length && (
+                      <span>
+                        {player.loading
+                          ? "Loading your song"
+                          : player.playing
+                            ? "Playing from your collection"
+                            : "Paused"}
+                      </span>
+                    </div>
+                    <div className="now-playing-panel-controls">
+                      <IconButton
+                        label="Previous in now playing"
+                        onClick={player.previous}
+                      >
+                        <SkipBack size={21} fill="currentColor" />
+                      </IconButton>
+                      <button
+                        type="button"
+                        className="main-play"
+                        aria-label={
+                          player.playing
+                            ? "Pause current song"
+                            : "Play current song"
+                        }
+                        onClick={player.toggle}
+                        disabled={player.loading}
+                      >
+                        {player.loading ? (
+                          <LoaderCircle size={23} className="spin" />
+                        ) : player.playing ? (
+                          <Pause size={23} fill="currentColor" />
+                        ) : (
+                          <Play size={23} fill="currentColor" />
+                        )}
+                      </button>
+                      <IconButton
+                        label="Next in now playing"
+                        onClick={player.next}
+                      >
+                        <SkipForward size={21} fill="currentColor" />
+                      </IconButton>
+                    </div>
+                    <div className="now-playing-album">
+                      <span>ALBUM</span>
+                      <strong>{current.album || "Your collection"}</strong>
+                    </div>
+                    <button
+                      type="button"
+                      className="now-playing-queue-link"
+                      onClick={() => setPanelView("queue")}
+                    >
+                      <ListMusic size={20} />
+                      <span>
+                        <strong>Up next</strong>
+                        <small>
+                          {queueTracks.length}{" "}
+                          {queueTracks.length === 1 ? "song" : "songs"} in your
+                          queue
+                        </small>
+                      </span>
+                      <ArrowRight size={17} />
+                    </button>
+                  </>
+                ) : (
+                  <div className="now-playing-empty">
+                    <Artwork className="now-playing-large-cover" />
+                    <h2>Your music, up close.</h2>
+                    <p>Choose a song to see its cover here.</p>
+                    <button
+                      type="button"
+                      className="button button-glass"
+                      onClick={() => setPanelView("queue")}
+                    >
+                      Choose from your queue
+                      <ArrowRight size={16} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div
+                className="queue-content"
+                role="tabpanel"
+                id="queue-tabpanel"
+                aria-labelledby="queue-tab"
+                tabIndex={0}
+              >
+                <div className="queue-heading">
+                  <h2>Up next</h2>
+                </div>
                 <p className="queue-description">
-                  Add some music to start your queue.
+                  A little journey through your sound.
                 </p>
-              )}
-            </div>
+                <div className="queue-list">
+                  {queueTracks.map((track, index) => (
+                    <button
+                      key={`${track.id}-${index}`}
+                      className={`queue-track ${current?.id === track.id ? "selected" : ""}`}
+                      onClick={() => player.play(track, queueTracks)}
+                    >
+                      <Artwork track={track} />
+                      <span>
+                        <strong>{track.title}</strong>
+                        <small>{track.artist}</small>
+                      </span>
+                      {current?.id === track.id && player.playing ? (
+                        <span className="equalizer">
+                          <i />
+                          <i />
+                          <i />
+                        </span>
+                      ) : (
+                        <Play size={14} />
+                      )}
+                    </button>
+                  ))}
+                  {!tracks.length && (
+                    <p className="queue-description">
+                      Add some music to start your queue.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </aside>
         )}
       </div>

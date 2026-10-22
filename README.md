@@ -46,6 +46,7 @@ npm run preview
 - Upload several songs at once, or drag audio files into the app.
 - Embedded tags provide song titles, artists, albums, and cover artwork; untagged songs use their filenames.
 - Use a song’s **… → Change song cover** menu to choose a photo from your device. The custom cover appears in the library, favorites, playlists, player, and queue, and stays saved after reload. **Reset song cover** restores its embedded artwork or default cover. Song and playlist covers are stored independently.
+- Click the artwork or song title in the bottom player to open **Now playing**, with a large cover, title, artist, playback controls, and a shortcut to change the cover. Switch between the **Now playing** and **Queue** tabs in the glass panel; close it with **×** or Escape.
 - Listen with play/pause, seeking, volume, shuffle, and repeat. The spacebar pauses or resumes playback when a control or dialog is not focused.
 - Save favorites, create playlists, and add songs using their **…** menus.
 - Search by title, artist, or album, and sort your collection.
@@ -63,7 +64,7 @@ npm run build
 npm run test:e2e
 ```
 
-Unit tests cover real audio metadata parsing, IndexedDB persistence, artwork, duplicate handling, favorites, and removal. Browser tests cover real decoded playback, seek and transport controls, upload persistence, playlists, validation, mobile navigation, saved light/dark appearance preferences, percentage scaling, dark artwork, and custom playlist cover persistence.
+Unit tests cover real audio metadata parsing, IndexedDB persistence, artwork, duplicate handling, favorites, and removal. Browser tests cover real decoded playback, seek and transport controls, upload persistence, playlists, validation, mobile navigation, saved light/dark appearance preferences, percentage scaling, dark artwork, custom playlist and song cover persistence, and the large-cover now-playing panel.
 
 The browser tests use `/usr/bin/chromium` in the cloud environment. To use another installed Chromium:
 
