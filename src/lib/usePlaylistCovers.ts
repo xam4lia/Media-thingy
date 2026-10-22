@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  deletePlaylistCoverBlob,
-  listPlaylistCoverBlobs,
+  deleteCoverBlob,
+  listCoverBlobs,
   preparePlaylistCover,
-  savePlaylistCoverBlob,
+  saveCoverBlob,
 } from "./playlistCovers";
+import type { CoverKind } from "./playlistCovers";
 
 export type PlaylistCovers = {
   covers: Record<string, string>;
@@ -17,7 +18,9 @@ export type PlaylistCovers = {
 };
 
 /** Object URLs are session-only; the resized image bytes are persisted in IndexedDB. */
-export function usePlaylistCovers(): PlaylistCovers {
+export function usePlaylistCovers(
+  kind: CoverKind = "playlist",
+): PlaylistCovers {
   const [covers, setCovers] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -33,10 +36,11 @@ export function usePlaylistCovers(): PlaylistCovers {
   useEffect(() => {
     const current = ++generation.current;
     mounted.current = true;
+    setCovers({});
     setLoading(true);
     setBusyId(null);
     setError(null);
-    hydration.current = listPlaylistCoverBlobs()
+    hydration.current = listCoverBlobs(kind)
       .then((blobs) => {
         if (!mounted.current || generation.current !== current) return;
         const next = { ...urls.current };
@@ -59,7 +63,7 @@ export function usePlaylistCovers(): PlaylistCovers {
           setError(
             cause instanceof Error
               ? cause.message
-              : "Your saved playlist covers could not be loaded. Try refreshing the page.",
+              : `Your saved ${kind} covers could not be loaded. Try refreshing the page.`,
           );
         }
       })
@@ -73,7 +77,7 @@ export function usePlaylistCovers(): PlaylistCovers {
       Object.values(urls.current).forEach((url) => URL.revokeObjectURL(url));
       urls.current = {};
     };
-  }, []);
+  }, [kind]);
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -116,7 +120,7 @@ export function usePlaylistCovers(): PlaylistCovers {
         // Create the display URL before committing; failures leave the existing cover intact.
         const url = URL.createObjectURL(blob);
         try {
-          await savePlaylistCoverBlob(playlistId, blob);
+          await saveCoverBlob(playlistId, blob, kind);
         } catch (cause) {
           URL.revokeObjectURL(url);
           throw cause;
@@ -131,13 +135,13 @@ export function usePlaylistCovers(): PlaylistCovers {
         setError(null);
         if (previous) URL.revokeObjectURL(previous);
       }),
-    [enqueue],
+    [enqueue, kind],
   );
 
   const removeCover = useCallback(
     (playlistId: string): Promise<void> =>
       enqueue(playlistId, async (current) => {
-        await deletePlaylistCoverBlob(playlistId);
+        await deleteCoverBlob(playlistId, kind);
         if (!mounted.current || generation.current !== current) return;
         const previous = urls.current[playlistId];
         const next = { ...urls.current };
@@ -147,7 +151,7 @@ export function usePlaylistCovers(): PlaylistCovers {
         setError(null);
         if (previous) URL.revokeObjectURL(previous);
       }),
-    [enqueue],
+    [enqueue, kind],
   );
 
   return { covers, loading, busyId, error, clearError, setCover, removeCover };

@@ -1,15 +1,86 @@
 import "fake-indexeddb/auto";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  deleteCoverBlob,
   deletePlaylistCoverBlob,
+  listCoverBlobs,
   listPlaylistCoverBlobs,
   preparePlaylistCover,
+  saveCoverBlob,
   savePlaylistCoverBlob,
 } from "./playlistCovers";
 
 beforeEach(async () => {
-  const covers = await listPlaylistCoverBlobs();
-  await Promise.all(Object.keys(covers).map(deletePlaylistCoverBlob));
+  for (const kind of ["playlist", "song"] as const) {
+    const covers = await listCoverBlobs(kind);
+    await Promise.all(Object.keys(covers).map((id) => deleteCoverBlob(id, kind)));
+  }
+});
+
+describe("song cover storage", () => {
+  it("keeps same-ID song and playlist covers separate when replacing or deleting a song cover", async () => {
+    await saveCoverBlob(
+      "same-id",
+      new Blob(["playlist artwork"], { type: "image/webp" }),
+      "playlist",
+    );
+    await saveCoverBlob(
+      "same-id",
+      new Blob(["song artwork"], { type: "image/jpeg" }),
+      "song",
+    );
+
+    expect(await (await listCoverBlobs("playlist"))["same-id"].text()).toBe(
+      "playlist artwork",
+    );
+    expect(await (await listCoverBlobs("song"))["same-id"].text()).toBe(
+      "song artwork",
+    );
+
+    await saveCoverBlob(
+      "same-id",
+      new Blob(["replacement song artwork"], { type: "image/webp" }),
+      "song",
+    );
+    expect(await (await listCoverBlobs("song"))["same-id"].text()).toBe(
+      "replacement song artwork",
+    );
+    expect(await (await listCoverBlobs("playlist"))["same-id"].text()).toBe(
+      "playlist artwork",
+    );
+
+    await deleteCoverBlob("same-id", "song");
+    expect(await listCoverBlobs("song")).toEqual({});
+    const playlistCovers = await listCoverBlobs("playlist");
+    expect(Object.keys(playlistCovers)).toEqual(["same-id"]);
+    expect(await playlistCovers["same-id"].text()).toBe("playlist artwork");
+  });
+
+  it("restores song cover bytes from storage after a fresh module load and preserves them after invalid image preparation", async () => {
+    await saveCoverBlob(
+      "my-song",
+      new Blob(["saved song cover"], { type: "image/webp" }),
+      "song",
+    );
+    vi.resetModules();
+    const freshStorage = await import("./playlistCovers");
+    const restored = await freshStorage.listCoverBlobs("song");
+    expect(Object.keys(restored)).toEqual(["my-song"]);
+    expect(restored["my-song"].type).toBe("image/webp");
+    expect(await restored["my-song"].text()).toBe("saved song cover");
+
+    const invalidCover = new File(
+      ['<svg xmlns="http://www.w3.org/2000/svg"/>'],
+      "new-cover.png",
+      { type: "image/png" },
+    );
+    await expect(preparePlaylistCover(invalidCover)).rejects.toThrow(
+      /JPEG|PNG|WebP|supported|image/i,
+    );
+    const saved = await freshStorage.listCoverBlobs("song");
+    expect(Object.keys(saved)).toEqual(["my-song"]);
+    expect(await saved["my-song"].text()).toBe("saved song cover");
+  });
 });
 
 describe("playlist cover storage", () => {

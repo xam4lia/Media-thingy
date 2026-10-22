@@ -53,6 +53,7 @@ import {
   useDisplayScale,
 } from "./lib/useDisplayScale";
 import { usePlaylistCovers } from "./lib/usePlaylistCovers";
+import { useSongCovers } from "./lib/useSongCovers";
 
 const demos: Track[] = [
   {
@@ -248,6 +249,7 @@ export default function App() {
   const { theme, toggleTheme } = useTheme();
   const { scale, setScale } = useDisplayScale();
   const playlistCovers = usePlaylistCovers();
+  const songCovers = useSongCovers();
   const [uploaded, setUploaded] = useState<Track[]>([]);
   const [demoFavorites, setDemoFavorites] = useState<string[]>(() =>
     readSaved("media-demo-favorites", []),
@@ -272,6 +274,7 @@ export default function App() {
   const [playlistName, setPlaylistName] = useState("");
   const [playlistTarget, setPlaylistTarget] = useState<Track | null>(null);
   const [menuTrack, setMenuTrack] = useState<string | null>(null);
+  const [menuOpensUp, setMenuOpensUp] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Track | null>(null);
   const [deletePlaylist, setDeletePlaylist] = useState<Playlist | null>(null);
   const [queueOpen, setQueueOpen] = useState(false);
@@ -281,6 +284,8 @@ export default function App() {
   const fileInput = useRef<HTMLInputElement>(null);
   const coverInput = useRef<HTMLInputElement>(null);
   const coverTarget = useRef<string | null>(null);
+  const songCoverInput = useRef<HTMLInputElement>(null);
+  const songCoverTarget = useRef<string | null>(null);
   const dragCount = useRef(0);
   const player = usePlayer();
   const tracks = [
@@ -295,7 +300,11 @@ export default function App() {
             : t.artwork,
         favorite: demoFavorites.includes(t.id),
       })),
-  ];
+  ].map((track) =>
+    songCovers.covers[track.id]
+      ? { ...track, artwork: songCovers.covers[track.id] }
+      : track,
+  );
   const activePlaylist = playlists.find((p) => p.id === view);
   const notify = useCallback(
     (message: string, error = false) => setToast({ message, error }),
@@ -330,6 +339,12 @@ export default function App() {
       playlistCovers.clearError();
     }
   }, [playlistCovers.error, playlistCovers.clearError, notify]);
+  useEffect(() => {
+    if (songCovers.error) {
+      notify(songCovers.error, true);
+      songCovers.clearError();
+    }
+  }, [songCovers.error, songCovers.clearError, notify]);
   useEffect(() => {
     const close = () => setMenuTrack(null);
     window.addEventListener("click", close);
@@ -444,6 +459,7 @@ export default function App() {
   }
   async function remove(track: Track) {
     try {
+      await songCovers.removeCover(track.id);
       if (track.source === "demo") {
         const next = [...hiddenDemos, track.id];
         setHiddenDemos(next);
@@ -572,9 +588,48 @@ export default function App() {
     }
   }
 
+  function chooseSongCover(track: Track) {
+    if (songCovers.busyId) return;
+    songCoverTarget.current = track.id;
+    songCoverInput.current?.click();
+  }
+
+  async function saveSongCover(file: File) {
+    const trackId = songCoverTarget.current;
+    if (!trackId) return;
+    try {
+      await songCovers.setCover(trackId, file);
+      notify("Song cover updated.");
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "This photo couldn’t be saved. Try another image.",
+        true,
+      );
+    } finally {
+      if (songCoverInput.current) songCoverInput.current.value = "";
+      songCoverTarget.current = null;
+    }
+  }
+
+  async function resetSongCover(track: Track) {
+    try {
+      await songCovers.removeCover(track.id);
+      notify("Original song cover restored.");
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "This cover couldn’t be reset. Please try again.",
+        true,
+      );
+    }
+  }
+
   let visible =
     view === "library"
-      ? uploaded
+      ? tracks.filter((track) => track.source === "upload")
       : view === "favorites"
         ? tracks.filter((t) => t.favorite)
         : activePlaylist
@@ -605,6 +660,9 @@ export default function App() {
           : (activePlaylist?.name ?? "Your library");
   const current =
     tracks.find((t) => t.id === player.current?.id) ?? player.current;
+  useEffect(() => {
+    if (current) player.syncArtwork(current.id, current.artwork);
+  }, [current?.id, current?.artwork, player.syncArtwork]);
   const totalDuration = visible.reduce((sum, t) => sum + (t.duration || 0), 0);
   const closeUpload = useCallback(() => {
     if (!uploading) setUploadOpen(false);
@@ -1172,6 +1230,28 @@ export default function App() {
                               aria-expanded={menuTrack === track.id}
                               onClick={(e) => {
                                 e.stopPropagation();
+                                const anchor =
+                                  e.currentTarget.getBoundingClientRect();
+                                const rootSize = Number.parseFloat(
+                                  getComputedStyle(document.documentElement)
+                                    .fontSize,
+                                );
+                                const menuHeight =
+                                  (3 +
+                                    Number(!!songCovers.covers[track.id]) +
+                                    Number(!!activePlaylist)) *
+                                    2.5 *
+                                    rootSize +
+                                  12;
+                                const bottom =
+                                  document
+                                    .querySelector(".player")
+                                    ?.getBoundingClientRect().top ??
+                                  window.innerHeight;
+                                setMenuOpensUp(
+                                  bottom - anchor.bottom < menuHeight &&
+                                    anchor.top > menuHeight,
+                                );
                                 setMenuTrack(
                                   menuTrack === track.id ? null : track.id,
                                 );
@@ -1180,7 +1260,25 @@ export default function App() {
                               <MoreHorizontal size={19} />
                             </IconButton>
                             {menuTrack === track.id && (
-                              <div className="track-menu">
+                              <div
+                                className={`track-menu${menuOpensUp ? " track-menu-up" : ""}`}
+                              >
+                                <button
+                                  disabled={songCovers.busyId !== null}
+                                  onClick={() => chooseSongCover(track)}
+                                >
+                                  <Camera size={15} />
+                                  Change song cover
+                                </button>
+                                {songCovers.covers[track.id] && (
+                                  <button
+                                    disabled={songCovers.busyId !== null}
+                                    onClick={() => void resetSongCover(track)}
+                                  >
+                                    <Disc3 size={15} />
+                                    Reset song cover
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => setPlaylistTarget(track)}
                                 >
@@ -1492,6 +1590,17 @@ export default function App() {
         onChange={(event) => {
           const file = event.target.files?.[0];
           if (file) void saveCover(file);
+        }}
+      />
+      <input
+        ref={songCoverInput}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+        className="file-input"
+        aria-label="Choose song cover"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void saveSongCover(file);
         }}
       />
       {uploadOpen && (

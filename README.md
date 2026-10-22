@@ -45,6 +45,7 @@ npm run preview
 - Open a playlist and choose **Change cover** to pick a photo from your device. Covers are cropped to a square, saved in this browser, and shown in the playlist, sidebar, and playlist picker. JPEG, PNG, WebP, GIF, and AVIF images up to 10 MB are supported; **Remove cover** restores the default.
 - Upload several songs at once, or drag audio files into the app.
 - Embedded tags provide song titles, artists, albums, and cover artwork; untagged songs use their filenames.
+- Use a song’s **… → Change song cover** menu to choose a photo from your device. The custom cover appears in the library, favorites, playlists, player, and queue, and stays saved after reload. **Reset song cover** restores its embedded artwork or default cover. Song and playlist covers are stored independently.
 - Listen with play/pause, seeking, volume, shuffle, and repeat. The spacebar pauses or resumes playback when a control or dialog is not focused.
 - Save favorites, create playlists, and add songs using their **…** menus.
 - Search by title, artist, or album, and sort your collection.

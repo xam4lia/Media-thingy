@@ -1,4 +1,9 @@
-const DATABASE_NAME = "media-thingy-playlist-covers";
+export type CoverKind = "playlist" | "song";
+
+const DATABASE_NAMES: Record<CoverKind, string> = {
+  playlist: "media-thingy-playlist-covers",
+  song: "media-thingy-song-covers",
+};
 const STORE_NAME = "covers";
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const IMAGE_TYPES = new Set([
@@ -9,97 +14,120 @@ const IMAGE_TYPES = new Set([
   "image/gif",
   "image/avif",
 ]);
-let databasePromise: Promise<IDBDatabase> | undefined;
+const databasePromises = new Map<CoverKind, Promise<IDBDatabase>>();
 
-function storageError(error: unknown, fallback: string): Error {
+function storageError(
+  error: unknown,
+  fallback: string,
+  kind: CoverKind,
+): Error {
   const name =
     error && typeof error === "object" && "name" in error ? error.name : "";
   if (name === "QuotaExceededError") {
     return new Error(
-      "Your browser storage is full. Remove a few songs or playlist covers, then try again.",
+      "Your browser storage is full. Remove a few songs or saved covers, then try again.",
     );
   }
   if (name === "SecurityError" || name === "NotAllowedError") {
     return new Error(
-      "Your browser blocked local storage. Allow site storage to save a playlist cover.",
+      `Your browser blocked local storage. Allow site storage to save a ${kind} cover.`,
     );
   }
   return new Error(fallback);
 }
 
-function openDatabase(): Promise<IDBDatabase> {
+function openDatabase(kind: CoverKind): Promise<IDBDatabase> {
   if (!globalThis.indexedDB) {
     return Promise.reject(
       new Error(
-        "Your browser cannot save playlist covers. Try a current browser with site storage enabled.",
+        `Your browser cannot save ${kind} covers. Try a current browser with site storage enabled.`,
       ),
     );
   }
-  if (!databasePromise) {
-    databasePromise = new Promise<IDBDatabase>((resolve, reject) => {
-      let blocked = false;
-      const request = indexedDB.open(DATABASE_NAME, 1);
-      request.onupgradeneeded = () =>
-        request.result.createObjectStore(STORE_NAME);
-      request.onerror = () =>
-        reject(
-          storageError(
-            request.error,
-            "Playlist covers could not be opened. Check that site storage is enabled.",
-          ),
-        );
-      request.onblocked = () => {
-        blocked = true;
-        reject(
-          new Error(
-            "Close other Media-thingy tabs, then try loading your playlist covers again.",
-          ),
-        );
+  const existing = databasePromises.get(kind);
+  if (existing) return existing;
+  const promise = new Promise<IDBDatabase>((resolve, reject) => {
+    let blocked = false;
+    let request: IDBOpenDBRequest;
+    try {
+      request = indexedDB.open(DATABASE_NAMES[kind], 1);
+    } catch (cause) {
+      reject(
+        storageError(
+          cause,
+          `Your ${kind} covers could not be opened. Check that site storage is enabled.`,
+          kind,
+        ),
+      );
+      return;
+    }
+    request.onupgradeneeded = () =>
+      request.result.createObjectStore(STORE_NAME);
+    request.onerror = () =>
+      reject(
+        storageError(
+          request.error,
+          `Your ${kind} covers could not be opened. Check that site storage is enabled.`,
+          kind,
+        ),
+      );
+    request.onblocked = () => {
+      blocked = true;
+      reject(
+        new Error(
+          `Close other Media-thingy tabs, then try loading your ${kind} covers again.`,
+        ),
+      );
+    };
+    request.onsuccess = () => {
+      const database = request.result;
+      if (blocked) {
+        database.close();
+        return;
+      }
+      database.onversionchange = () => {
+        database.close();
+        if (databasePromises.get(kind) === promise)
+          databasePromises.delete(kind);
       };
-      request.onsuccess = () => {
-        const database = request.result;
-        if (blocked) {
-          database.close();
-          return;
-        }
-        database.onversionchange = () => {
-          database.close();
-          databasePromise = undefined;
-        };
-        resolve(database);
-      };
-    }).catch((error: unknown) => {
-      databasePromise = undefined;
-      throw error;
-    });
-  }
-  return databasePromise;
+      resolve(database);
+    };
+  }).catch((error: unknown) => {
+    if (databasePromises.get(kind) === promise) databasePromises.delete(kind);
+    throw error;
+  });
+  databasePromises.set(kind, promise);
+  return promise;
 }
 
 function transactionComplete(
   transaction: IDBTransaction,
   fallback: string,
+  kind: CoverKind,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     transaction.oncomplete = () => resolve();
     // Wait for abort: transaction.error then preserves the actual quota failure.
     transaction.onabort = () =>
-      reject(storageError(transaction.error, fallback));
+      reject(storageError(transaction.error, fallback, kind));
   });
 }
 
-function requirePlaylistId(playlistId: string): void {
-  if (!playlistId.trim())
-    throw new Error("Choose a playlist before updating its cover.");
+function requireCoverId(id: string, kind: CoverKind): void {
+  if (!id.trim())
+    throw new Error(`Choose a ${kind} before updating its cover.`);
 }
 
-/** Covers use a separate database so saving an image never changes the music schema. */
-export async function listPlaylistCoverBlobs(): Promise<Record<string, Blob>> {
-  const database = await openDatabase();
+/** Separate databases preserve playlist covers and never alter audio or embedded artwork. */
+export async function listCoverBlobs(
+  kind: CoverKind,
+): Promise<Record<string, Blob>> {
+  const database = await openDatabase(kind);
   const transaction = database.transaction(STORE_NAME, "readonly");
   const complete = transactionComplete(
     transaction,
-    "Saved playlist covers could not be loaded. Try refreshing the page.",
+    `Saved ${kind} covers could not be loaded. Try refreshing the page.`,
+    kind,
   );
   const store = transaction.objectStore(STORE_NAME);
   const keys = store.getAllKeys();
@@ -114,33 +142,53 @@ export async function listPlaylistCoverBlobs(): Promise<Record<string, Blob>> {
   );
 }
 
-export async function savePlaylistCoverBlob(
-  playlistId: string,
+export async function saveCoverBlob(
+  id: string,
   blob: Blob,
+  kind: CoverKind,
 ): Promise<void> {
-  requirePlaylistId(playlistId);
-  const database = await openDatabase();
+  requireCoverId(id, kind);
+  const database = await openDatabase(kind);
   const transaction = database.transaction(STORE_NAME, "readwrite");
   const complete = transactionComplete(
     transaction,
-    "The playlist cover could not be saved. Try again with site storage enabled.",
+    `The ${kind} cover could not be saved. Try again with site storage enabled.`,
+    kind,
   );
-  transaction.objectStore(STORE_NAME).put(blob, playlistId);
+  transaction.objectStore(STORE_NAME).put(blob, id);
   await complete;
 }
 
-export async function deletePlaylistCoverBlob(
-  playlistId: string,
+export async function deleteCoverBlob(
+  id: string,
+  kind: CoverKind,
 ): Promise<void> {
-  requirePlaylistId(playlistId);
-  const database = await openDatabase();
+  requireCoverId(id, kind);
+  const database = await openDatabase(kind);
   const transaction = database.transaction(STORE_NAME, "readwrite");
   const complete = transactionComplete(
     transaction,
-    "The playlist cover could not be removed. Please try again.",
+    `The ${kind} cover could not be removed. Please try again.`,
+    kind,
   );
-  transaction.objectStore(STORE_NAME).delete(playlistId);
+  transaction.objectStore(STORE_NAME).delete(id);
   await complete;
+}
+
+// Preserve the existing playlist API and its database name for already-saved covers.
+export function listPlaylistCoverBlobs(): Promise<Record<string, Blob>> {
+  return listCoverBlobs("playlist");
+}
+
+export function savePlaylistCoverBlob(
+  playlistId: string,
+  blob: Blob,
+): Promise<void> {
+  return saveCoverBlob(playlistId, blob, "playlist");
+}
+
+export function deletePlaylistCoverBlob(playlistId: string): Promise<void> {
+  return deleteCoverBlob(playlistId, "playlist");
 }
 
 function supportedSignature(bytes: Uint8Array): boolean {
