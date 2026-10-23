@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { Cloud, LoaderCircle, LogOut, UserRound } from "lucide-react";
+import {
+  Cloud,
+  ExternalLink,
+  LoaderCircle,
+  LogOut,
+  UserRound,
+} from "lucide-react";
 import { useAccount } from "../lib/AccountContext";
 import { copyDeviceSongs } from "../lib/cloud";
 
@@ -13,6 +19,7 @@ export function AccountSettings({
   busy: boolean;
 }) {
   const account = useAccount();
+  const setupUrl = `${import.meta.env.BASE_URL}setup.html`;
   const [register, setRegister] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -52,7 +59,15 @@ export function AccountSettings({
       {account.loading ? (
         <p role="status">Checking your account…</p>
       ) : !account.available ? (
-        <p className="account-notice">{account.unavailableReason}</p>
+        <>
+          <p className="account-notice">{account.unavailableReason}</p>
+          <a className="button button-dark" href={setupUrl}>
+            Set up free accounts <ExternalLink size={16} />
+          </a>
+          <p className="settings-hint">
+            This opens the setup page already included with your website.
+          </p>
+        </>
       ) : account.user ? (
         <>
           <p className="account-notice">
