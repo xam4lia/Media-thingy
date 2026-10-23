@@ -65,7 +65,7 @@ npm run preview
 
 - Use the sun/moon button in the header to switch between grey glass and charcoal dark mode. It follows your device's appearance initially and remembers your choice in this browser.
 - Open **Settings** with the gear in the header to adjust **Interface size** from 100% to 150%. The default is 115%, and your percentage is remembered. The app fills the window with only a small outer margin.
-- Built-in covers and the illustrated record sleeve switch to darker artwork in dark mode.
+- Built-in covers switch to darker artwork in dark mode.
 - Open a playlist and choose **Change cover** to pick a photo from your device. Covers are cropped to a square, saved in this browser, and shown in the playlist, sidebar, and playlist picker. JPEG, PNG, WebP, GIF, and AVIF images up to 10 MB are supported; **Remove cover** restores the default.
 - Upload several songs at once, or drag audio files into the app.
 - Embedded tags provide song titles, artists, albums, and cover artwork; untagged songs use their filenames.
