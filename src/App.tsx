@@ -18,6 +18,7 @@ import {
   MoreHorizontal,
   Moon,
   Music2,
+  Palette,
   Pause,
   Play,
   Plus,
@@ -52,6 +53,7 @@ import {
   MIN_SCALE,
   useDisplayScale,
 } from "./lib/useDisplayScale";
+import { useGlassHue } from "./lib/useGlassHue";
 import { usePlaylistCovers } from "./lib/usePlaylistCovers";
 import { useSongCovers } from "./lib/useSongCovers";
 import { useAccount } from "./lib/AccountContext";
@@ -64,6 +66,14 @@ import {
   jsonOptions,
   updateCloudTrack,
 } from "./lib/cloud";
+
+const huePresets = [
+  { name: "Ocean", value: 205 },
+  { name: "Violet", value: 265 },
+  { name: "Rose", value: 335 },
+  { name: "Amber", value: 35 },
+  { name: "Forest", value: 145 },
+] as const;
 
 const demos: Track[] = [
   {
@@ -262,6 +272,7 @@ export default function App() {
   const remote = !!account.user;
   const { theme, toggleTheme } = useTheme();
   const { scale, setScale } = useDisplayScale();
+  const { hue, setHue } = useGlassHue();
   const playlistCovers = usePlaylistCovers();
   const songCovers = useSongCovers();
   const [uploaded, setUploaded] = useState<Track[]>([]);
@@ -2065,6 +2076,58 @@ export default function App() {
             </div>
             <p className="settings-hint">
               Your size preference stays saved on this device.
+            </p>
+          </section>
+          <section
+            className="settings-section hue-settings"
+            aria-labelledby="hue-heading"
+          >
+            <div className="settings-section-heading">
+              <div>
+                <h3 id="hue-heading" className="hue-heading">
+                  <Palette size={18} /> Background hue
+                </h3>
+                <p>Tint the glass and ambient light in both themes.</p>
+              </div>
+              <output htmlFor="background-hue" aria-live="polite">
+                {hue}°
+              </output>
+            </div>
+            <div className="hue-preview" aria-hidden="true">
+              <span style={{ background: `hsl(${hue} 78% 58%)` }} />
+              <span style={{ background: `hsl(${(hue + 58) % 360} 62% 62%)` }} />
+            </div>
+            <input
+              id="background-hue"
+              className="hue-slider"
+              type="range"
+              aria-label="Background hue"
+              min={0}
+              max={360}
+              step={1}
+              value={hue}
+              onChange={(event) => setHue(Number(event.target.value))}
+              style={{ "--current-hue": hue } as React.CSSProperties}
+            />
+            <div className="hue-presets">
+              {huePresets.map((preset) => (
+                <button
+                  key={preset.name}
+                  type="button"
+                  aria-label={`Use ${preset.name} background hue`}
+                  aria-pressed={hue === preset.value}
+                  onClick={() => setHue(preset.value)}
+                >
+                  <span
+                    className="hue-swatch"
+                    style={{ background: `hsl(${preset.value} 72% 57%)` }}
+                  />
+                  {preset.name}
+                </button>
+              ))}
+            </div>
+            <p className="settings-hint">
+              Your background colour stays saved on this device.
             </p>
           </section>
           <div className="info-card">
