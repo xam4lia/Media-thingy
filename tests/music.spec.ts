@@ -579,12 +579,19 @@ test('timed lyrics can be uploaded, follow playback, seek, and persist with an u
   await expect(editor.getByText('Timed lyrics detected', { exact: true })).toBeVisible()
   await editor.getByRole('button', { name: 'Save lyrics', exact: true }).click()
   await expect(editor).not.toBeVisible()
-  await expect(lyricsPanel.locator('.lyrics-song-cover')).toBeVisible()
+  await page.getByRole('button', { name: 'Pause playback', exact: true }).click()
+  const lyricsCover = lyricsPanel.locator('.lyrics-song-cover')
+  await expect(lyricsCover).toBeVisible()
+  const coverBeforeSeek = await lyricsCover.boundingBox()
   const lines = lyricsPanel.locator('.lyrics-lines button')
   await expect(lines).toHaveCount(3)
   await setSeek(page, 6)
   await expect(lines.nth(1)).toHaveAttribute('aria-current', 'true')
-  await expect(lyricsPanel.locator('.lyrics-song-cover')).toBeVisible()
+  await expect(lyricsCover).toBeVisible()
+  await expect.poll(async () => (await lyricsCover.boundingBox())?.y).toBeCloseTo(coverBeforeSeek!.y, 0)
+  expect(Number.parseFloat(await lines.nth(1).evaluate(element => getComputedStyle(element).fontSize))).toBeGreaterThan(
+    Number.parseFloat(await lines.nth(0).evaluate(element => getComputedStyle(element).fontSize)),
+  )
   await lines.nth(2).click()
   await expect.poll(async () => Number(await page.getByLabel('Seek playback').inputValue())).toBeGreaterThanOrEqual(10)
 

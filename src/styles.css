@@ -2308,7 +2308,10 @@ input[type="range"]::-moz-range-thumb {
   text-align: left;
   overflow-wrap: anywhere;
   opacity: 0.48;
-  transition: color 0.2s, opacity 0.2s, transform 0.2s;
+  transition:
+    color 0.2s,
+    opacity 0.2s,
+    transform 0.2s;
 }
 .lyrics-lines.is-synced > button:hover {
   color: var(--text-secondary);
@@ -2316,6 +2319,7 @@ input[type="range"]::-moz-range-thumb {
 }
 .lyrics-lines.is-synced > button.active {
   color: var(--ink);
+  font-size: 1.3rem;
   opacity: 1;
   transform: translateX(0.25rem);
 }

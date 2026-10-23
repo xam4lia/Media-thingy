@@ -199,10 +199,24 @@ function LyricsView({
       )
     : -1;
   const activeLine = useRef<HTMLButtonElement>(null);
+  const lyricsScroller = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (active >= 0)
-      activeLine.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const scroller = lyricsScroller.current;
+    const line = activeLine.current;
+    if (active >= 0 && scroller && line) {
+      const scrollerTop = scroller.getBoundingClientRect().top;
+      const lineTop = line.getBoundingClientRect().top;
+      scroller.scrollTo({
+        top:
+          scroller.scrollTop +
+          lineTop -
+          scrollerTop -
+          scroller.clientHeight / 2 +
+          line.clientHeight / 2,
+        behavior: "smooth",
+      });
+    }
   }, [active]);
 
   if (!track) {
@@ -259,6 +273,7 @@ function LyricsView({
         alt={`Cover for ${track.title}`}
       />
       <div
+        ref={lyricsScroller}
         className={`lyrics-lines ${parsed.synced ? "is-synced" : "is-plain"}`}
       >
         {parsed.lines.map((line, index) =>
