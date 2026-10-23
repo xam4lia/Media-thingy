@@ -584,6 +584,7 @@ test('timed lyrics can be uploaded, follow playback, seek, and persist with an u
   await expect(lines).toHaveCount(3)
   await setSeek(page, 6)
   await expect(lines.nth(1)).toHaveAttribute('aria-current', 'true')
+  await expect(lyricsPanel.locator('.lyrics-song-cover')).toBeVisible()
   await lines.nth(2).click()
   await expect.poll(async () => Number(await page.getByLabel('Seek playback').inputValue())).toBeGreaterThanOrEqual(10)
 
