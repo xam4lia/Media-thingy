@@ -9,5 +9,5 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["server/api.ts", "functions"]
+  "include": ["server/api.ts", "server/worker.ts", "functions"]
 }

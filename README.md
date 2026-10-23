@@ -26,6 +26,8 @@ The initial GitHub authorization must happen on a device/network where GitHub ac
 
 For free username/password accounts with saved libraries across devices, follow the [Supabase Free setup](docs/free-accounts.md). Open `/setup.html` on your deployed website to copy the database setup SQL without GitHub access. Connect two server settings to Cloudflare Pages; no Workers Paid, D1, or R2 setup is required. Until connected, the app continues to offer its device library. Existing D1/R2 installations can use the [older account setup](docs/cloudflare-accounts.md).
 
+If the Cloudflare address ends in `workers.dev`, use the repository's Worker deployment instead. Set the build command to `npm run build` and the deploy command to `npx wrangler deploy`. The included `wrangler.jsonc` serves the website files and sends `/api/*` to the account API on the same free Worker. Dashboard variables are preserved between deployments.
+
 Device libraries belong to the current browser/site address. A new Cloudflare address starts with a new device library. Keep the originals on your device.
 
 ## Open on GitHub Pages

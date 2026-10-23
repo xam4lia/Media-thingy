@@ -1,6 +1,6 @@
 # Free account setup: Cloudflare Pages + Supabase
 
-Use the Free plan on both services. The app has a Supabase adapter, so Workers Paid, D1, and R2 are not needed for this setup. Your website keeps its existing `pages.dev` address. Visitors create usernames and passwords; they do not need email or Google sign-in.
+Use the Free plan on both services. The app has a Supabase adapter, so Workers Paid, D1, and R2 are not needed for this setup. Your website can use its existing `pages.dev` or `workers.dev` address. Visitors create usernames and passwords; they do not need email or Google sign-in.
 
 ## Connect the services
 
@@ -20,6 +20,8 @@ Use the Free plan on both services. The app has a Supabase adapter, so Workers P
 
 7. Under **Deployments**, retry/redeploy the latest `main` deployment so the Functions receive these values. Refresh the website, open **Settings → Your account → Create account**, then add a song. Sign in from another browser to verify it returns and plays.
 8. To import existing device songs, sign in in the browser that contains them, then use **Settings → Copy this device's songs to account**. The copy preserves local songs; it does not import local playlists. Libraries saved at another website address cannot be read automatically—upload those original audio files to the account.
+
+If your address ends in `workers.dev`, use **`npm run build`** as the build command and **`npx wrangler deploy`** as the deploy command. The included Worker configuration serves `dist` and runs the account API for `/api/*`. Its `keep_vars` setting preserves the two values entered in the Cloudflare dashboard.
 
 ## Free limits and existing installations
 

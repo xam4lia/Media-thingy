@@ -16,6 +16,7 @@
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json",
     "build:pages": "tsc -b && vite build --base=/Media-thingy/",
+    "deploy:worker": "npm run build && wrangler deploy",
     "deploy": "npm run build:pages && gh-pages -d dist --nojekyll"
   },
   "dependencies": {
