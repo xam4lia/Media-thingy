@@ -28,7 +28,7 @@ export function useTheme() {
     document.documentElement.style.colorScheme = theme;
     document
       .querySelector('meta[name="theme-color"]')
-      ?.setAttribute("content", theme === "dark" ? "#15171b" : "#e6e9ec");
+      ?.setAttribute("content", theme === "dark" ? "#0b1017" : "#dbe3ec");
   }, [theme]);
 
   useEffect(() => {
