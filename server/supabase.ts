@@ -12,7 +12,9 @@ type Statement = { sql: string; params: unknown[] };
 
 /** The existing account API uses this small subset of D1 and R2. The SQL RPC only
  * accepts the exact statements shipped with the app, and executes batches atomically. */
-export function supabaseEnvironment(env: Env & SupabaseConfig): Env {
+export function supabaseEnvironment(
+  env: Env & SupabaseConfig,
+): Env & SupabaseConfig {
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return env;
   const base = new URL(env.SUPABASE_URL);
   if (
@@ -141,6 +143,7 @@ export function supabaseEnvironment(env: Env & SupabaseConfig): Env {
     },
   } as unknown as R2Bucket;
   return {
+    ...env,
     DB,
     MUSIC,
     storageScope: "shared",

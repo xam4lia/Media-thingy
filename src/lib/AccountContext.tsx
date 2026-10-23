@@ -24,13 +24,19 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     let alive = true;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
-    api<{ available: boolean; user: AccountUser | null }>("/auth/session", {
-      signal: controller.signal,
-    })
+    api<{
+      available: boolean;
+      user: AccountUser | null;
+      missingConfiguration?: string[];
+    }>("/auth/session", { signal: controller.signal })
       .then((data) => {
         if (alive) {
           setAvailable(data.available);
           setUser(data.user);
+          if (!data.available && data.missingConfiguration?.length)
+            setUnavailableReason(
+              `Cloudflare is not sending ${data.missingConfiguration.join(" and ")} to the running Worker. Add it under the Worker’s runtime Variables and Secrets, then deploy the change.`,
+            );
         }
       })
       .catch(() => {

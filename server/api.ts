@@ -259,7 +259,10 @@ function insertMedia(
   );
 }
 
-async function route(request: Request, env: Env): Promise<Response> {
+async function route(
+  request: Request,
+  env: Env & SupabaseConfig,
+): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/$/, "");
   const method = request.method;
@@ -269,8 +272,13 @@ async function route(request: Request, env: Env): Promise<Response> {
   )
     fail(400, "Open this site with HTTPS before using accounts.");
   if (!env.DB || !env.MUSIC) {
-    if (path === "/api/auth/session" && method === "GET")
-      return json({ available: false, user: null });
+    if (path === "/api/auth/session" && method === "GET") {
+      const missingConfiguration = [
+        !env.SUPABASE_URL && "SUPABASE_URL",
+        !env.SUPABASE_SERVICE_ROLE_KEY && "SUPABASE_SERVICE_ROLE_KEY",
+      ].filter(Boolean);
+      return json({ available: false, user: null, missingConfiguration });
+    }
     return fail(
       503,
       "Accounts are not connected yet. Your device library still works.",
