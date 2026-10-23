@@ -2288,8 +2288,11 @@ input[type="range"]::-moz-range-thumb {
   overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
-  padding: 42% 0 48%;
+  padding: 1rem 0 48%;
   scroll-behavior: smooth;
+}
+.lyrics-song-cover {
+  margin-bottom: 1.75rem;
 }
 .lyrics-lines.is-synced > button {
   display: block;
@@ -2316,7 +2319,7 @@ input[type="range"]::-moz-range-thumb {
   transform: translateX(0.25rem);
 }
 .lyrics-lines.is-plain {
-  padding: 1.25rem 0 2rem;
+  padding: 1rem 0 2rem;
 }
 .lyrics-lines.is-plain > p {
   min-height: 1.65em;

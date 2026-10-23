@@ -254,6 +254,11 @@ function LyricsView({
         </button>
       </div>
       <div className={`lyrics-lines ${parsed.synced ? "is-synced" : "is-plain"}`}>
+        <Artwork
+          track={track}
+          className="now-playing-large-cover lyrics-song-cover"
+          alt={`Cover for ${track.title}`}
+        />
         {parsed.lines.map((line, index) =>
           parsed.synced ? (
             <button

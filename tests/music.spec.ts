@@ -579,6 +579,7 @@ test('timed lyrics can be uploaded, follow playback, seek, and persist with an u
   await expect(editor.getByText('Timed lyrics detected', { exact: true })).toBeVisible()
   await editor.getByRole('button', { name: 'Save lyrics', exact: true }).click()
   await expect(editor).not.toBeVisible()
+  await expect(lyricsPanel.locator('.lyrics-song-cover')).toBeVisible()
   const lines = lyricsPanel.locator('.lyrics-lines button')
   await expect(lines).toHaveCount(3)
   await setSeek(page, 6)
