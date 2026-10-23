@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent, ReactNode } from "react";
 import {
   ArrowDownToLine,
@@ -18,6 +18,7 @@ import {
   MoreHorizontal,
   Moon,
   Music2,
+  MicVocal,
   Palette,
   Pause,
   Play,
@@ -54,6 +55,11 @@ import {
   useDisplayScale,
 } from "./lib/useDisplayScale";
 import { useGlassHue } from "./lib/useGlassHue";
+import {
+  MAX_LYRICS_LENGTH,
+  normalizeLyricsText,
+  parseLyrics,
+} from "./lib/lyrics";
 import { usePlaylistCovers } from "./lib/usePlaylistCovers";
 import { useSongCovers } from "./lib/useSongCovers";
 import { useAccount } from "./lib/AccountContext";
@@ -172,6 +178,103 @@ function Artwork({
     </div>
   );
 }
+
+function LyricsView({
+  track,
+  currentTime,
+  onSeek,
+  onEdit,
+}: {
+  track?: Track | null;
+  currentTime: number;
+  onSeek: (seconds: number) => void;
+  onEdit: (track: Track) => void;
+}) {
+  const parsed = useMemo(() => parseLyrics(track?.lyrics ?? ""), [track?.lyrics]);
+  const active = parsed.synced
+    ? parsed.lines.reduce(
+        (found, line, index) =>
+          (line.time ?? Infinity) <= currentTime + 0.05 ? index : found,
+        -1,
+      )
+    : -1;
+  const activeLine = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (active >= 0)
+      activeLine.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [active]);
+
+  if (!track) {
+    return (
+      <div className="lyrics-empty">
+        <MicVocal size={36} strokeWidth={1.2} />
+        <h2>Choose a song first.</h2>
+        <p>Play something from your library to open its lyrics.</p>
+      </div>
+    );
+  }
+
+  if (!track.lyrics || !parsed.lines.length) {
+    return (
+      <div className="lyrics-empty">
+        <MicVocal size={36} strokeWidth={1.2} />
+        <h2>No lyrics yet.</h2>
+        <p>
+          {track.source === "demo"
+            ? "The preview songs do not have lyrics. Play one of your uploaded songs to add your own."
+            : "Paste ordinary lyrics or upload a timed LRC file."}
+        </p>
+        {track.source !== "demo" && (
+          <button className="button button-dark" onClick={() => onEdit(track)}>
+            <Plus size={16} />
+            Add lyrics
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="lyrics-view">
+      <div className="lyrics-heading">
+        <div>
+          <span className="section-eyebrow">
+            {parsed.synced ? "FOLLOWING THE MUSIC" : "LYRICS"}
+          </span>
+          <h2>{track.title}</h2>
+          <p>{track.artist}</p>
+        </div>
+        <button
+          className="button button-glass lyrics-edit"
+          aria-label={`Edit lyrics for ${track.title}`}
+          onClick={() => onEdit(track)}
+        >
+          Edit
+        </button>
+      </div>
+      <div className={`lyrics-lines ${parsed.synced ? "is-synced" : "is-plain"}`}>
+        {parsed.lines.map((line, index) =>
+          parsed.synced ? (
+            <button
+              key={`${line.time}-${index}`}
+              ref={index === active ? activeLine : undefined}
+              className={index === active ? "active" : ""}
+              aria-current={index === active ? "true" : undefined}
+              aria-label={`${line.text || "Instrumental"}, ${time(line.time ?? 0)}`}
+              onClick={() => onSeek(line.time ?? 0)}
+            >
+              {line.text || <span aria-label="Instrumental">♪</span>}
+            </button>
+          ) : (
+            <p key={index}>{line.text || "\u00a0"}</p>
+          ),
+        )}
+      </div>
+      {parsed.synced && <p className="lyrics-hint">Tap a line to jump there.</p>}
+    </div>
+  );
+}
 function IconButton({
   children,
   label,
@@ -216,7 +319,7 @@ function Modal({
       if (event.key === "Tab" && el) {
         const items = [
           ...el.querySelectorAll<HTMLElement>(
-            'button:not(:disabled), input, [tabindex="0"]',
+            'button:not(:disabled), input, textarea, [tabindex="0"]',
           ),
         ];
         const first = items[0];
@@ -302,9 +405,12 @@ export default function App() {
   const [menuOpensUp, setMenuOpensUp] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Track | null>(null);
   const [deletePlaylist, setDeletePlaylist] = useState<Playlist | null>(null);
-  const [panelView, setPanelView] = useState<"now-playing" | "queue" | null>(
-    null,
-  );
+  const [panelView, setPanelView] = useState<
+    "now-playing" | "lyrics" | "queue" | null
+  >(null);
+  const [lyricsTarget, setLyricsTarget] = useState<Track | null>(null);
+  const [lyricsDraft, setLyricsDraft] = useState("");
+  const [lyricsSaving, setLyricsSaving] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [libraryLoading, setLibraryLoading] = useState(true);
@@ -321,6 +427,7 @@ export default function App() {
   const songCoverInput = useRef<HTMLInputElement>(null);
   const songCoverTarget = useRef<string | null>(null);
   const panelTrigger = useRef<HTMLButtonElement | null>(null);
+  const lyricsFileInput = useRef<HTMLInputElement>(null);
   const dragCount = useRef(0);
   const player = usePlayer();
   const tracks = [
@@ -753,6 +860,66 @@ export default function App() {
     }
   }
 
+  function editLyrics(track: Track) {
+    if (track.source === "demo") return;
+    setLyricsTarget(track);
+    setLyricsDraft(track.lyrics ?? "");
+  }
+
+  const closeLyrics = useCallback(() => {
+    if (lyricsSaving) return;
+    setLyricsTarget(null);
+    setLyricsDraft("");
+  }, [lyricsSaving]);
+
+  async function readLyricsFile(file: File) {
+    if (!/\.(lrc|txt)$/i.test(file.name) && file.type !== "text/plain") {
+      notify("Choose an LRC or TXT lyrics file.", true);
+      return;
+    }
+    if (file.size > MAX_LYRICS_LENGTH * 4) {
+      notify("That lyrics file is too large.", true);
+      return;
+    }
+    const value = normalizeLyricsText(await file.text());
+    if (value.length > MAX_LYRICS_LENGTH) {
+      notify("Lyrics can contain up to 100,000 characters.", true);
+      return;
+    }
+    setLyricsDraft(value);
+  }
+
+  async function saveLyrics(value = lyricsDraft) {
+    if (!lyricsTarget || lyricsTarget.source === "demo") return;
+    const lyrics = normalizeLyricsText(value);
+    if (lyrics.length > MAX_LYRICS_LENGTH) {
+      notify("Lyrics can contain up to 100,000 characters.", true);
+      return;
+    }
+    setLyricsSaving(true);
+    try {
+      const updated = await (remote ? updateCloudTrack : updateTrack)(
+        lyricsTarget.id,
+        { lyrics },
+      );
+      setUploaded((previous) =>
+        previous.map((track) => (track.id === updated.id ? updated : track)),
+      );
+      setLyricsTarget(null);
+      setLyricsDraft("");
+      notify(lyrics ? "Lyrics saved." : "Lyrics removed.");
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "Those lyrics couldn’t be saved. Please try again.",
+        true,
+      );
+    } finally {
+      setLyricsSaving(false);
+    }
+  }
+
   let visible =
     view === "library"
       ? tracks.filter((track) => track.source !== "demo")
@@ -824,14 +991,17 @@ export default function App() {
   function movePanelTab(event: React.KeyboardEvent<HTMLButtonElement>) {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
+    const tabs = ["now-playing", "lyrics", "queue"] as const;
+    const currentIndex = Math.max(0, tabs.indexOf(panelView ?? "now-playing"));
     const next =
       event.key === "Home"
-        ? "now-playing"
+        ? tabs[0]
         : event.key === "End"
-          ? "queue"
-          : panelView === "now-playing"
-            ? "queue"
-            : "now-playing";
+          ? tabs.at(-1)!
+          : tabs[
+              (currentIndex + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) %
+                tabs.length
+            ];
     setPanelView(next);
     requestAnimationFrame(() =>
       document.getElementById(`${next}-tab`)?.focus(),
@@ -1568,7 +1738,11 @@ export default function App() {
             id="listening-panel"
             className="queue-panel listening-panel"
             aria-label={
-              panelView === "now-playing" ? "Now playing" : "Play queue"
+              panelView === "now-playing"
+                ? "Now playing"
+                : panelView === "lyrics"
+                  ? "Lyrics"
+                  : "Play queue"
             }
           >
             <div className="listening-panel-header">
@@ -1592,6 +1766,19 @@ export default function App() {
                 </button>
                 <button
                   type="button"
+                  id="lyrics-tab"
+                  className="panel-tab"
+                  role="tab"
+                  aria-selected={panelView === "lyrics"}
+                  aria-controls="lyrics-tabpanel"
+                  tabIndex={panelView === "lyrics" ? 0 : -1}
+                  onClick={() => setPanelView("lyrics")}
+                  onKeyDown={movePanelTab}
+                >
+                  Lyrics
+                </button>
+                <button
+                  type="button"
                   id="queue-tab"
                   className="panel-tab"
                   role="tab"
@@ -1608,7 +1795,9 @@ export default function App() {
                 label={
                   panelView === "now-playing"
                     ? "Close now playing"
-                    : "Close queue"
+                    : panelView === "lyrics"
+                      ? "Close lyrics"
+                      : "Close queue"
                 }
                 onClick={closeListeningPanel}
               >
@@ -1746,6 +1935,21 @@ export default function App() {
                     </button>
                   </div>
                 )}
+              </div>
+            ) : panelView === "lyrics" ? (
+              <div
+                className="lyrics-content"
+                role="tabpanel"
+                id="lyrics-tabpanel"
+                aria-labelledby="lyrics-tab"
+                tabIndex={0}
+              >
+                <LyricsView
+                  track={current}
+                  currentTime={player.currentTime}
+                  onSeek={player.seek}
+                  onEdit={editLyrics}
+                />
               </div>
             ) : (
               <div
@@ -1995,6 +2199,94 @@ export default function App() {
           </div>
         </Modal>
       )}
+      {lyricsTarget && (
+        <Modal title={`Lyrics for ${lyricsTarget.title}`} close={closeLyrics}>
+          <span className="modal-illustration">
+            <MicVocal size={28} strokeWidth={1.3} />
+          </span>
+          <span className="section-eyebrow">WORDS WITH THE MUSIC</span>
+          <h2>{lyricsTarget.lyrics ? "Edit lyrics." : "Add lyrics."}</h2>
+          <p>
+            Paste ordinary lyrics, or use an LRC file with timestamps for live
+            highlighting and auto-scroll.
+          </p>
+          <form
+            className="lyrics-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void saveLyrics();
+            }}
+          >
+            <div className="lyrics-file-row">
+              <input
+                ref={lyricsFileInput}
+                type="file"
+                accept=".lrc,.txt,text/plain"
+                className="file-input"
+                aria-label="Choose lyrics file"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void readLyricsFile(file);
+                  event.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                className="button button-glass"
+                onClick={() => lyricsFileInput.current?.click()}
+              >
+                <Upload size={16} />
+                Upload LRC or TXT
+              </button>
+              <span>
+                {lyricsDraft
+                  ? parseLyrics(lyricsDraft).synced
+                    ? "Timed lyrics detected"
+                    : "Plain lyrics"
+                  : "No lyrics added"}
+              </span>
+            </div>
+            <label htmlFor="song-lyrics">Lyrics</label>
+            <textarea
+              id="song-lyrics"
+              autoFocus
+              maxLength={MAX_LYRICS_LENGTH}
+              rows={12}
+              value={lyricsDraft}
+              onChange={(event) => setLyricsDraft(event.target.value)}
+              placeholder={"Paste lyrics here…\n\nFor live lyrics, use timestamps like:\n[00:08.50] First line"}
+            />
+            <div className="lyrics-count">
+              <span>{lyricsDraft.length.toLocaleString()} / 100,000</span>
+            </div>
+            <div className="modal-actions lyrics-actions">
+              {lyricsTarget.lyrics && (
+                <button
+                  type="button"
+                  className="button button-glass"
+                  disabled={lyricsSaving}
+                  onClick={() => void saveLyrics("")}
+                >
+                  <Trash2 size={16} />
+                  Remove lyrics
+                </button>
+              )}
+              <button
+                className="button button-dark"
+                type="submit"
+                disabled={lyricsSaving || !normalizeLyricsText(lyricsDraft)}
+              >
+                {lyricsSaving ? (
+                  <LoaderCircle size={16} className="spin" />
+                ) : (
+                  <Check size={16} />
+                )}
+                Save lyrics
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
       {settingsOpen && (
         <Modal
           title="Settings"
@@ -2138,8 +2430,8 @@ export default function App() {
               </strong>
               <p>
                 {remote
-                  ? "Your songs, favorites, playlists, and covers are saved to your account. Sign in on another device to open your library."
-                  : "Your songs, playlist covers, and preferences stay in this browser. Clearing site data removes this library."}
+                  ? "Your songs, lyrics, favorites, playlists, and covers are saved to your account. Sign in on another device to open your library."
+                  : "Your songs, lyrics, playlist covers, and preferences stay in this browser. Clearing site data removes this library."}
               </p>
             </div>
           </div>

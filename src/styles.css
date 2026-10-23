@@ -1828,6 +1828,58 @@ input[type="range"]::-moz-range-thumb {
   justify-content: center;
   margin-top: 1.5625rem;
 }
+.lyrics-form {
+  display: flex;
+  flex-direction: column;
+  margin-top: 1.25rem;
+  text-align: left;
+}
+.lyrics-file-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.lyrics-file-row .button {
+  flex-shrink: 0;
+}
+.lyrics-file-row > span,
+.lyrics-count {
+  color: var(--muted);
+  font-size: 0.5625rem;
+}
+.lyrics-form > label {
+  margin-bottom: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.625rem;
+}
+.lyrics-form textarea {
+  width: 100%;
+  min-height: 14rem;
+  resize: vertical;
+  padding: 0.875rem;
+  border: 1px solid var(--glass-edge);
+  border-radius: 1rem;
+  background:
+    linear-gradient(145deg, var(--glass-top), var(--glass-bottom)),
+    var(--surface);
+  box-shadow: inset 0 1px 0 var(--glass-inset);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+.lyrics-form textarea::placeholder {
+  color: var(--muted);
+}
+.lyrics-count {
+  margin-top: 0.4rem;
+  text-align: right;
+}
+.lyrics-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
 .info-card {
   display: flex;
   gap: 0.875rem;
@@ -2184,6 +2236,133 @@ input[type="range"]::-moz-range-thumb {
 .queue-content > .queue-list {
   min-height: 0;
   flex: 1;
+}
+.lyrics-content {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.lyrics-view {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  padding: 1.125rem;
+}
+.lyrics-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-shrink: 0;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.lyrics-heading > div {
+  min-width: 0;
+}
+.lyrics-heading h2 {
+  margin-top: 0.375rem;
+  color: var(--ink);
+  font-family: "Manrope Variable", sans-serif;
+  font-size: 1.125rem;
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  overflow-wrap: anywhere;
+}
+.lyrics-heading p {
+  margin-top: 0.25rem;
+  color: var(--text-secondary);
+  font-size: 0.625rem;
+}
+.lyrics-edit {
+  min-height: 2rem;
+  padding: 0.375rem 0.75rem;
+  flex-shrink: 0;
+}
+.lyrics-lines {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+  padding: 42% 0 48%;
+  scroll-behavior: smooth;
+}
+.lyrics-lines.is-synced > button {
+  display: block;
+  width: 100%;
+  padding: 0.6rem 0.125rem;
+  color: var(--muted);
+  font-family: "Manrope Variable", sans-serif;
+  font-size: 1.15rem;
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  line-height: 1.28;
+  text-align: left;
+  overflow-wrap: anywhere;
+  opacity: 0.48;
+  transition: color 0.2s, opacity 0.2s, transform 0.2s;
+}
+.lyrics-lines.is-synced > button:hover {
+  color: var(--text-secondary);
+  opacity: 0.78;
+}
+.lyrics-lines.is-synced > button.active {
+  color: var(--ink);
+  opacity: 1;
+  transform: translateX(0.25rem);
+}
+.lyrics-lines.is-plain {
+  padding: 1.25rem 0 2rem;
+}
+.lyrics-lines.is-plain > p {
+  min-height: 1.65em;
+  color: var(--ink);
+  font-family: "Manrope Variable", sans-serif;
+  font-size: 1rem;
+  font-weight: 550;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.lyrics-hint {
+  flex-shrink: 0;
+  padding-top: 0.65rem;
+  color: var(--muted);
+  font-size: 0.5rem;
+  text-align: center;
+}
+.lyrics-empty {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.25rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+.lyrics-empty > svg {
+  margin-bottom: 1.25rem;
+  color: var(--muted);
+}
+.lyrics-empty h2 {
+  color: var(--ink);
+  font-family: "Manrope Variable", sans-serif;
+  font-size: 1.125rem;
+  font-weight: 650;
+}
+.lyrics-empty p {
+  max-width: 16rem;
+  margin-top: 0.625rem;
+  font-size: 0.6875rem;
+  line-height: 1.7;
+}
+.lyrics-empty .button {
+  margin-top: 1.25rem;
 }
 .paused-mark {
   display: inline-flex;

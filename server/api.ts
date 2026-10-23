@@ -26,6 +26,8 @@ const SESSION_SECONDS = 60 * 60 * 24 * 30;
 const ACCOUNT_BYTES = 1024 * 1024 * 1024;
 const MAX_AUDIO = 50 * 1024 * 1024;
 const MAX_IMAGE = 7 * 1024 * 1024;
+const MAX_LYRICS = 100_000;
+const MAX_LYRICS_BYTES = MAX_LYRICS * 4;
 const encoder = new TextEncoder();
 
 class ApiError extends Error {
@@ -173,6 +175,13 @@ async function readLimited(request: Request, limit: number) {
 function text(value: unknown, max: number) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
+function lyricsText(value: unknown) {
+  if (typeof value !== "string") return "";
+  const result = value.replace(/\r\n?/g, "\n").trim();
+  if (result.length > MAX_LYRICS)
+    fail(413, "Lyrics can contain up to 100,000 characters.");
+  return result;
+}
 function validId(id: string) {
   if (!/^[a-zA-Z0-9_-]{1,100}$/.test(id)) fail(400, "Invalid item.");
 }
@@ -291,8 +300,8 @@ async function route(
     )
       fail(403, "This request was blocked. Refresh the page and try again.");
     const length = Number(request.headers.get("Content-Length"));
-    if (length > MAX_AUDIO + MAX_IMAGE + 100_000)
-      fail(413, "Choose an audio file smaller than 50 MB.");
+    if (length > MAX_AUDIO + MAX_IMAGE + MAX_LYRICS_BYTES + 100_000)
+      fail(413, "This request is too large.");
   }
   if (path === "/api/auth/session" && method === "GET")
     return json({ available: true, user: await userFor(request, env) });
@@ -461,7 +470,10 @@ async function route(
     const bounded = new Request(request.url, {
       method: "POST",
       headers: request.headers,
-      body: limitStream(request.body, MAX_AUDIO + MAX_IMAGE + 100_000),
+      body: limitStream(
+        request.body,
+        MAX_AUDIO + MAX_IMAGE + MAX_LYRICS_BYTES + 100_000,
+      ),
     });
     let form: FormData;
     try {
@@ -482,7 +494,7 @@ async function route(
       !audio.type.startsWith("audio/")
     )
       fail(400, "Choose an audio file.");
-    if (typeof raw !== "string" || raw.length > 10_000)
+    if (typeof raw !== "string" || raw.length > MAX_LYRICS + 10_000)
       fail(400, "Invalid song details.");
     let meta: Record<string, unknown>;
     try {
@@ -512,6 +524,7 @@ async function route(
       imageContentType = imageType(new Uint8Array(image)) || "";
       if (!imageContentType) fail(400, "Choose a supported cover image.");
     }
+    const lyrics = lyricsText(meta.lyrics);
     const metadata = {
       id,
       title: text(meta.title, 500) || audio.name,
@@ -528,6 +541,7 @@ async function route(
       favorite: meta.favorite === true,
       fileName: audio.name.slice(0, 500),
       size: audio.size,
+      ...(lyrics ? { lyrics } : {}),
     };
     const bytes = audio.size + (image?.byteLength || 0);
     await reserve(env, user, bytes);
@@ -601,12 +615,17 @@ async function route(
       .first<{ metadata: string }>();
     if (!row) fail(404, "This song is no longer in your library.");
     if (method === "PATCH") {
-      const patch = await body(request, 10_000);
+      const patch = await body(request, MAX_LYRICS_BYTES + 10_000);
       const metadata = JSON.parse(row.metadata);
       if (typeof patch.favorite === "boolean")
         metadata.favorite = patch.favorite;
       for (const field of ["title", "artist", "album"])
         if (text(patch[field], 500)) metadata[field] = text(patch[field], 500);
+      if (typeof patch.lyrics === "string") {
+        const lyrics = lyricsText(patch.lyrics);
+        if (lyrics) metadata.lyrics = lyrics;
+        else delete metadata.lyrics;
+      }
       await env.DB.prepare(
         "UPDATE tracks SET metadata = ? WHERE user_id = ? AND id = ?",
       )

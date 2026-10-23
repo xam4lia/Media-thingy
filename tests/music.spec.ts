@@ -560,6 +560,39 @@ test('the large now-playing panel follows transport and queue tabs without inter
   await expect(panel).not.toBeVisible()
 })
 
+test('timed lyrics can be uploaded, follow playback, seek, and persist with an uploaded song', async ({ page }) => {
+  await page.goto('/')
+  await uploadSong(page)
+  await ownSong(page).getByRole('button', { name: 'Play soft-focus', exact: true }).click()
+  await page.getByRole('button', { name: 'Show now playing', exact: true }).click()
+  const panel = page.getByRole('complementary', { name: 'Now playing', exact: true })
+  await panel.getByRole('tab', { name: 'Lyrics', exact: true }).click()
+  const lyricsPanel = page.getByRole('complementary', { name: 'Lyrics', exact: true })
+  await expect(lyricsPanel.getByText('No lyrics yet.', { exact: true })).toBeVisible()
+  await lyricsPanel.getByRole('button', { name: 'Add lyrics', exact: true }).click()
+  const editor = page.getByRole('dialog', { name: 'Lyrics for soft-focus', exact: true })
+  await editor.getByLabel('Choose lyrics file', { exact: true }).setInputFiles({
+    name: 'soft-focus.lrc',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('[00:00.00]Opening line\n[00:05.00]Middle line\n[00:10.00]Final line'),
+  })
+  await expect(editor.getByText('Timed lyrics detected', { exact: true })).toBeVisible()
+  await editor.getByRole('button', { name: 'Save lyrics', exact: true }).click()
+  await expect(editor).not.toBeVisible()
+  const lines = lyricsPanel.locator('.lyrics-lines button')
+  await expect(lines).toHaveCount(3)
+  await setSeek(page, 6)
+  await expect(lines.nth(1)).toHaveAttribute('aria-current', 'true')
+  await lines.nth(2).click()
+  await expect.poll(async () => Number(await page.getByLabel('Seek playback').inputValue())).toBeGreaterThanOrEqual(10)
+
+  await page.reload()
+  await ownSong(page).getByRole('button', { name: 'Play soft-focus', exact: true }).click()
+  await page.getByRole('button', { name: 'Show now playing', exact: true }).click()
+  await page.getByRole('complementary', { name: 'Now playing', exact: true }).getByRole('tab', { name: 'Lyrics', exact: true }).click()
+  await expect(page.getByRole('complementary', { name: 'Lyrics', exact: true }).getByText('Final line', { exact: true })).toBeVisible()
+})
+
 
 test('the mobile large cover fits at 150 percent, follows the theme, and retains a chosen photo', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })

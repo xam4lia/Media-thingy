@@ -1,4 +1,5 @@
 import { parseBlob } from "music-metadata";
+import { MAX_LYRICS_LENGTH, normalizeLyricsText } from "./lyrics";
 
 export type Track = {
   id: string;
@@ -14,10 +15,11 @@ export type Track = {
   size: number;
   source: "upload" | "demo" | "cloud";
   url?: string;
+  lyrics?: string;
 };
 
 export type TrackPatch = Partial<
-  Pick<Track, "title" | "artist" | "album" | "favorite">
+  Pick<Track, "title" | "artist" | "album" | "favorite" | "lyrics">
 >;
 
 type StoredTrack = Track & { fingerprint: string };
@@ -328,6 +330,12 @@ export async function updateTrack(
   id: string,
   patch: TrackPatch,
 ): Promise<Track> {
+  const lyrics =
+    typeof patch.lyrics === "string"
+      ? normalizeLyricsText(patch.lyrics)
+      : undefined;
+  if (lyrics && lyrics.length > MAX_LYRICS_LENGTH)
+    throw new Error("Lyrics can contain up to 100,000 characters.");
   const database = await openDatabase();
   return new Promise((resolve, reject) => {
     const transaction = database.transaction("tracks", "readwrite");
@@ -345,6 +353,10 @@ export async function updateTrack(
       for (const field of ["title", "artist", "album"] as const) {
         const value = patch[field]?.trim();
         if (value) updated[field] = value;
+      }
+      if (lyrics !== undefined) {
+        if (lyrics) updated.lyrics = lyrics;
+        else delete updated.lyrics;
       }
       store.put(updated);
     };

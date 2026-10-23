@@ -184,7 +184,7 @@ describe
             await request(
               "/tracks/free-song",
               "PATCH",
-              { favorite: false },
+              { favorite: false, lyrics: "[00:02.00] Account lyric" },
               alice,
             )
           ).status,
@@ -192,7 +192,12 @@ describe
         const data = await (
           await request("/library", "GET", undefined, alice)
         ).json();
-        expect(data).toMatchObject({ state, tracks: [{ favorite: false }] });
+        expect(data).toMatchObject({
+          state,
+          tracks: [
+            { favorite: false, lyrics: "[00:02.00] Account lyric" },
+          ],
+        });
       });
       it("denies arbitrary SQL and blocks anonymous access to password and database RPCs", async () => {
         const arbitrary = await fetch(

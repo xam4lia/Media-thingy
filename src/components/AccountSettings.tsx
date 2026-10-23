@@ -94,7 +94,7 @@ export function AccountSettings({
             <Cloud size={16} /> Copy this device’s songs to account
           </button>
           <p className="settings-hint">
-            Copies songs, their favorites, and song covers from this browser.
+            Copies songs, lyrics, favorites, and song covers from this browser.
             You can retry safely.
           </p>
           <button

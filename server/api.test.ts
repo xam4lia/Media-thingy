@@ -160,6 +160,17 @@ describe.sequential("private account library on real local D1 and R2", () => {
       ).status,
     ).toBe(404);
     expect((await mf.dispatchFetch(`${origin}${track.url}`)).status).toBe(401);
+    const lyrics = "[00:01.00] First line\r\n[00:05.50] Second line";
+    const updated = await request(
+      "/tracks/my-song",
+      "PATCH",
+      { lyrics },
+      alice,
+    );
+    expect(updated.status).toBe(200);
+    expect(await updated.json()).toMatchObject({
+      track: { lyrics: "[00:01.00] First line\n[00:05.50] Second line" },
+    });
     expect(
       (await request("/tracks/my-song", "PATCH", { favorite: false }, bob))
         .status,
@@ -170,6 +181,9 @@ describe.sequential("private account library on real local D1 and R2", () => {
     expect(
       await (await request("/library", "GET", undefined, bob)).json(),
     ).toMatchObject({ tracks: [] });
+    expect(
+      await (await request("/library", "GET", undefined, alice)).json(),
+    ).toMatchObject({ tracks: [{ lyrics: expect.stringContaining("Second line") }] });
     expect((await request("/tracks", "POST", form, alice)).status).toBe(409);
   });
   it("persists playlists with conflict detection and returns only each account's covers", async () => {

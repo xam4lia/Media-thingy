@@ -68,6 +68,15 @@ describe('local music library', () => {
     await expect(updateTrack(track.id, { favorite: false })).rejects.toThrow('no longer in your library');
   });
 
+  it('saves normalized lyrics with a song and removes them again', async () => {
+    const { tracks: [track] } = await importFiles([new File(['audio'], 'lyrics.ogg')]);
+    expect(await updateTrack(track.id, { lyrics: '[00:01.00] First\r\n[00:02.00] Second ' })).toMatchObject({
+      lyrics: '[00:01.00] First\n[00:02.00] Second',
+    });
+    expect((await listTracks())[0].lyrics).toContain('Second');
+    expect(await updateTrack(track.id, { lyrics: '  ' })).not.toHaveProperty('lyrics');
+  });
+
   it('uses the filename when the audio has no title tag and stores embedded artwork', async () => {
     vi.mocked(parseBlob).mockResolvedValue({ common: { picture: [{ format: 'image/png', data: new Uint8Array([1, 2, 3]) }] }, format: { duration: 42 } } as Awaited<ReturnType<typeof parseBlob>>);
     const { tracks: [track] } = await importFiles([new File(['audio'], 'My recording.m4a')]);
