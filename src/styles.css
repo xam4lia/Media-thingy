@@ -2288,8 +2288,22 @@ input[type="range"]::-moz-range-thumb {
   overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
-  padding: 1rem 0 48%;
+  padding: 2.25rem 0 48%;
   scroll-behavior: smooth;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 2.5rem,
+    #000 calc(100% - 3rem),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 2.5rem,
+    #000 calc(100% - 3rem),
+    transparent 100%
+  );
 }
 .lyrics-song-cover {
   width: min(100%, clamp(12rem, 34vh, 20rem));
@@ -2324,7 +2338,7 @@ input[type="range"]::-moz-range-thumb {
   transform: translateX(0.25rem);
 }
 .lyrics-lines.is-plain {
-  padding: 1rem 0 2rem;
+  padding: 2.25rem 0 3rem;
 }
 .lyrics-lines.is-plain > p {
   min-height: 1.65em;

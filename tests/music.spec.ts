@@ -585,6 +585,7 @@ test('timed lyrics can be uploaded, follow playback, seek, and persist with an u
   const coverBeforeSeek = await lyricsCover.boundingBox()
   const lines = lyricsPanel.locator('.lyrics-lines button')
   await expect(lines).toHaveCount(3)
+  await expect.poll(async () => lyricsPanel.locator('.lyrics-lines').evaluate(element => getComputedStyle(element).maskImage)).toContain('linear-gradient')
   await setSeek(page, 6)
   await expect(lines.nth(1)).toHaveAttribute('aria-current', 'true')
   await expect(lyricsCover).toBeVisible()
