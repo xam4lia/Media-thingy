@@ -269,6 +269,7 @@ test('beat glow follows playback, stops when paused, and remembers its setting',
   await demoSong(page).getByRole('button', { name: 'Play Soft Focus by media originals', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Pause playback', exact: true })).toBeVisible()
   await expect.poll(async () => page.locator('html').evaluate(element => Number.parseFloat(getComputedStyle(element).getPropertyValue('--beat-pulse')) || 0)).toBeGreaterThan(0.01)
+  await expect.poll(async () => page.locator('html').evaluate(element => Number.parseFloat(getComputedStyle(element).getPropertyValue('--beat-shell-alpha')) || 0)).toBeGreaterThan(0.01)
   await page.getByRole('button', { name: 'Pause playback', exact: true }).click()
   await expect.poll(async () => page.locator('html').evaluate(element => Number.parseFloat(getComputedStyle(element).getPropertyValue('--beat-pulse')) || 0)).toBe(0)
 

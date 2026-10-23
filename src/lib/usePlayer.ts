@@ -392,13 +392,14 @@ export function usePlayer(beatGlow = false) {
     const root = document.documentElement;
     const paintBeatGlow = (pulse: number) => {
       root.style.setProperty("--beat-pulse", pulse.toFixed(3));
-      root.style.setProperty("--beat-brightness", (1 + pulse * 0.16).toFixed(3));
-      root.style.setProperty("--beat-saturation", `${140 + pulse * 32}%`);
-      root.style.setProperty("--beat-opacity", (0.68 + pulse * 0.12).toFixed(3));
+      root.style.setProperty("--beat-brightness", (1 + pulse * 0.32).toFixed(3));
+      root.style.setProperty("--beat-saturation", `${140 + pulse * 58}%`);
+      root.style.setProperty("--beat-opacity", (0.68 + pulse * 0.2).toFixed(3));
       root.style.setProperty(
         "--beat-opacity-three",
-        (0.5 + pulse * 0.1).toFixed(3),
+        (0.5 + pulse * 0.16).toFixed(3),
       );
+      root.style.setProperty("--beat-shell-alpha", (pulse * 0.2).toFixed(3));
     };
     const stopBeatGlow = () => {
       if (beatFrame) cancelAnimationFrame(beatFrame);
@@ -421,7 +422,7 @@ export function usePlayer(beatGlow = false) {
       }
       const average = total / Math.max(1, end - 1);
       const energy = peak * 0.68 + average * 0.32;
-      const pulse = Math.min(1, Math.max(0, (energy - 20) / 190));
+      const pulse = Math.min(1, Math.max(0, (energy - 10) / 150));
       paintBeatGlow(pulse);
       beatFrame = requestAnimationFrame(drawBeatGlow);
     };
