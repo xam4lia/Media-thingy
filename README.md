@@ -24,7 +24,7 @@ Use the regular `npm run build` command for this host: it produces root-relative
 
 The initial GitHub authorization must happen on a device/network where GitHub access is permitted. Once deployed, the app is served entirely by Cloudflare and does not need a connection to GitHub to play music. School access still depends on the school's domain policy.
 
-For username/password accounts with saved libraries across devices, follow the [Cloudflare account setup](docs/cloudflare-accounts.md). This connects a private R2 bucket and D1 database to the included Pages Functions. Until those resources are configured, the app continues to offer its device library.
+For free username/password accounts with saved libraries across devices, follow the [Supabase Free setup](docs/free-accounts.md). Open `/setup.html` on your deployed website to copy the database setup SQL without GitHub access. Connect two server settings to Cloudflare Pages; no Workers Paid, D1, or R2 setup is required. Until connected, the app continues to offer its device library. Existing D1/R2 installations can use the [older account setup](docs/cloudflare-accounts.md).
 
 Device libraries belong to the current browser/site address. A new Cloudflare address starts with a new device library. Keep the originals on your device.
 
@@ -78,11 +78,11 @@ npm run preview
 - Search by title, artist, or album, and sort your collection.
 - Three original ambient demos are included so you can try the player before uploading. Regenerate them with `python3 scripts/generate-demo.py`.
 
-Without signing in, music files are stored in **IndexedDB in this browser on this device**. Clearing site data removes this device library, so keep your original audio files. On a configured Cloudflare deployment, open **Settings → Your account** to create a username/password account: songs, favorites, playlists, and covers then save privately to that account and return when you sign in elsewhere. Existing device songs can be copied into the account from Settings. Appearance and interface size remain device preferences. See [account setup and limits](docs/cloudflare-accounts.md).
+Without signing in, music files are stored in **IndexedDB in this browser on this device**. Clearing site data removes this device library, so keep your original audio files. On a configured Cloudflare deployment, open **Settings → Your account** to create a username/password account: songs, favorites, playlists, and covers then save privately to that account and return when you sign in elsewhere. Existing device songs can be copied into the account from Settings. Appearance and interface size remain device preferences. See [free account setup and limits](docs/free-accounts.md).
 
 Playback support for MP3, WAV, FLAC, M4A, AAC, OGG, and other audio formats depends on the browser's codecs.
 
-Fonts, icons, artwork, and demo audio are served by the site. The device library needs no external service or API key. Account libraries use Cloudflare D1, R2, and Pages Functions.
+Fonts, icons, artwork, and demo audio are served by the site. The device library needs no external service or API key. Free account libraries use Supabase and Cloudflare Pages Functions. The original D1/R2 adapter remains supported.
 
 ## Validate
 

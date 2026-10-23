@@ -1,5 +1,7 @@
 # Activate username/password accounts
 
+For the **free** option, use [Cloudflare Pages + Supabase Free](free-accounts.md). The D1/R2 instructions below are for the older paid backend.
+
 The source includes Cloudflare Pages Functions for accounts. **Accounts are not live until the database and storage below are connected.** Existing device libraries keep working without them. GitHub Pages and Netlify static deployments support the device library only.
 
 Cloudflare may require billing to enable R2. Use the **Workers Paid plan** for this backend: the password hashing deliberately uses 600,000 PBKDF2-SHA-256 iterations, which can exceed the Free plan's 10 ms CPU allowance. Check Cloudflare's current [Workers limits](https://developers.cloudflare.com/workers/platform/limits/) and [R2 pricing](https://developers.cloudflare.com/r2/pricing/) before enabling paid services. No resources or paid plans are created by the repository's build or by local tests.

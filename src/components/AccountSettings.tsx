@@ -56,8 +56,8 @@ export function AccountSettings({
       ) : account.user ? (
         <>
           <p className="account-notice">
-            <Cloud size={17} /> Songs you add now save to your account. Up to 1
-            GB, with 50 MB per song.
+            <Cloud size={17} /> Songs you add now save privately to your
+            account. Up to 50 MB per song.
           </p>
           <button
             type="button"

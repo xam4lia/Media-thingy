@@ -77,16 +77,14 @@ test("an account restores real audio, favorites, playlists, and covers in a sepa
   await page
     .getByRole("button", { name: "Change song cover", exact: true })
     .click();
-  await page
-    .getByLabel("Choose song cover", { exact: true })
-    .setInputFiles({
-      name: "cover.png",
-      mimeType: "image/png",
-      buffer: Buffer.from(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=",
-        "base64",
-      ),
-    });
+  await page.getByLabel("Choose song cover", { exact: true }).setInputFiles({
+    name: "cover.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=",
+      "base64",
+    ),
+  });
   await expect(row.locator("img")).toHaveAttribute(
     "src",
     /\/api\/media\/.+\/song\//,
@@ -190,4 +188,29 @@ test("device songs copy safely without exposing them to another account, on a ph
   await expect(
     page.locator(".track-row").filter({ hasText: "soft-focus" }),
   ).toHaveCount(1);
+});
+
+test("the setup page copies database SQL without GitHub access and fits a phone", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/setup.html");
+  const copy = page.getByRole("button", {
+    name: "Copy database SQL",
+    exact: true,
+  });
+  await expect(copy).toBeEnabled();
+  await copy.click();
+  await expect(page.getByRole("status")).toContainText("Copied.");
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toContain("create schema if not exists media_thingy");
+  expect(copied).toContain(
+    "grant execute on function public.media_queries(jsonb) to service_role",
+  );
+  expect(copied.trim()).toMatch(/commit;$/);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(390);
 });

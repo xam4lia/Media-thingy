@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Set up free accounts · media.</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: system-ui, sans-serif;
+        background: #171a1e;
+        color: #eef0f3;
+      }
+      body {
+        margin: 0;
+        padding: 32px 20px;
+        background: radial-gradient(at top left, #343b44, transparent 70%);
+        min-height: 100vh;
+        box-sizing: border-box;
+      }
+      main {
+        max-width: 760px;
+        margin: auto;
+        padding: clamp(20px, 5vw, 44px);
+        border: 1px solid #ffffff24;
+        border-radius: 24px;
+        background: #252a30b3;
+        backdrop-filter: blur(20px);
+      }
+      h1 {
+        font-size: clamp(25px, 5vw, 36px);
+        letter-spacing: -0.04em;
+      }
+      p,
+      li {
+        line-height: 1.7;
+        color: #c0c7d1;
+      }
+      li {
+        margin: 22px 0;
+        padding-left: 4px;
+      }
+      strong {
+        color: #f1f3f6;
+      }
+      a {
+        color: #c5d9fb;
+      }
+      code {
+        color: #f4f5f7;
+        overflow-wrap: anywhere;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 12px;
+        font-size: 14px;
+      }
+      td,
+      th {
+        text-align: left;
+        border-bottom: 1px solid #ffffff20;
+        padding: 10px 6px;
+        overflow-wrap: anywhere;
+      }
+      button {
+        border: 0;
+        border-radius: 12px;
+        background: #edf0f5;
+        color: #22272e;
+        padding: 13px 18px;
+        font: inherit;
+        font-weight: 650;
+        cursor: pointer;
+        margin-top: 12px;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: wait;
+      }
+      textarea {
+        margin-top: 16px;
+        width: 100%;
+        height: 160px;
+        box-sizing: border-box;
+        padding: 12px;
+        border: 1px solid #ffffff30;
+        border-radius: 12px;
+        background: #171a1e;
+        color: #cbd4e0;
+        font: 12px/1.5 monospace;
+      }
+      .note {
+        font-size: 14px;
+      }
+      #copy-status {
+        min-height: 24px;
+        margin: 4px 0;
+      }
+      ol {
+        padding-left: 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <a href="./">← Back to media.</a>
+      <h1>Set up free accounts.</h1>
+      <p>
+        For the website owner: connect a Supabase Free project to your
+        Cloudflare Pages site. Visitors will use a username and password, with
+        no email or Google sign-in.
+      </p>
+      <ol>
+        <li>
+          <strong>Create a Supabase Free project.</strong> Open
+          <a
+            href="https://supabase.com/dashboard"
+            target="_blank"
+            rel="noopener"
+            >Supabase</a
+          >, choose the Free plan, and create a new project named
+          <code>media-thingy</code>. Choose a database password and wait for the
+          project to finish starting.
+        </li>
+        <li>
+          <strong>Set up the database and private song bucket.</strong> Click
+          the button below, open Supabase’s
+          <strong>SQL Editor → New query</strong>, paste the copied SQL, and
+          click <strong>Run</strong>. It creates the required tables, password
+          functions, and private storage bucket automatically.<br />
+          <button id="copy" disabled type="button">Copy database SQL</button>
+          <p id="copy-status" role="status">Loading the setup SQL…</p>
+          <details>
+            <summary>Show the SQL to copy manually</summary>
+            <textarea
+              id="sql"
+              aria-label="Supabase database setup SQL"
+              readonly
+              spellcheck="false"
+            ></textarea>
+          </details>
+        </li>
+        <li>
+          <strong>Find two project values.</strong> In Supabase, copy the
+          project URL from <strong>Connect → App Frameworks</strong> or
+          <strong>Settings → Data API</strong>. Under
+          <strong>Settings → API Keys → Legacy API Keys</strong>, reveal and
+          copy the <code>service_role</code> key. Keep that key private.
+        </li>
+        <li>
+          <strong>Add them to Cloudflare.</strong> Open
+          <strong
+            >Workers &amp; Pages → your Pages project → Settings → Variables and
+            Secrets</strong
+          >. In <strong>Production</strong>, add:
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>SUPABASE_URL</code></td>
+                <td>
+                  Your project URL, like
+                  <code>https://example.supabase.co</code>
+                </td>
+              </tr>
+              <tr>
+                <td><code>SUPABASE_SERVICE_ROLE_KEY</code></td>
+                <td>
+                  The private <code>service_role</code> key; save as a
+                  Secret/encrypted value
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="note">
+            These belong in Cloudflare’s server settings. Do not put the key in
+            a <code>VITE_</code> variable, source code, this page, or chat.
+          </p>
+        </li>
+        <li>
+          <strong>Redeploy your site.</strong> Under Cloudflare
+          <strong>Deployments</strong>, retry the latest deployment from
+          <code>main</code>. The build command stays <code>npm run build</code>,
+          output directory <code>dist</code>, and root directory blank. Leave
+          both services on their Free plans; this setup does not use D1, R2, or
+          paid password hashing in Cloudflare.
+        </li>
+        <li>
+          <strong>Make your music account.</strong> Return to the app, refresh,
+          and open <strong>Settings → Your account → Create account</strong>.
+          Add a song, then sign in in another browser to check it returns. In
+          Settings, <strong>Copy this device’s songs to account</strong> imports
+          songs already saved at this website address.
+        </li>
+      </ol>
+      <p class="note">
+        Supabase Free has a shared storage and transfer allowance. This app caps
+        saved file usage at 950 MB across all accounts, leaving some headroom
+        within the 1 GB allowance. Supabase’s monthly transfer allowance is also
+        shared; inactive Free projects can pause. Use a new, dedicated project
+        and do not enable paid add-ons.
+      </p>
+    </main>
+    <script>
+      const button = document.getElementById("copy");
+      const field = document.getElementById("sql");
+      const status = document.getElementById("copy-status");
+      fetch("setup-supabase.sql", { cache: "no-store" })
+        .then(async (response) => {
+          if (!response.ok) throw new Error("Setup file unavailable");
+          field.value = await response.text();
+          button.disabled = false;
+          status.textContent = "Ready to copy.";
+        })
+        .catch(() => {
+          status.textContent =
+            "Could not load the setup SQL. Refresh this page to try again.";
+        });
+      button.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(field.value);
+          status.textContent =
+            "Copied. Paste it into Supabase’s SQL Editor, then click Run.";
+        } catch {
+          field.closest("details").open = true;
+          field.focus();
+          field.select();
+          status.textContent =
+            "Select and copy the SQL shown below, then paste it into Supabase’s SQL Editor.";
+        }
+      });
+    </script>
+  </body>
+</html>

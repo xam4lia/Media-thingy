@@ -1,8 +1,18 @@
 /// <reference types="@cloudflare/workers-types" />
+import {
+  StorageLimitError,
+  supabaseEnvironment,
+  type SupabaseConfig,
+} from "./supabase";
 
 export interface Env {
   DB: D1Database;
   MUSIC: R2Bucket;
+  PASSWORDS?: {
+    hash(password: string): Promise<string>;
+    check(password: string, stored: string): Promise<boolean>;
+  };
+  storageScope?: "shared";
 }
 type User = { id: string; username: string };
 type Media = {
@@ -118,8 +128,8 @@ async function rateLimit(env: Env, key: string, maximum: number) {
   const now = Date.now();
   const row = await env.DB.prepare(
     `INSERT INTO auth_limits (key, attempts, expires_at) VALUES (?, 1, ?)
-    ON CONFLICT(key) DO UPDATE SET attempts = CASE WHEN expires_at < ? THEN 1 ELSE attempts + 1 END,
-    expires_at = CASE WHEN expires_at < ? THEN excluded.expires_at ELSE expires_at END RETURNING attempts`,
+    ON CONFLICT(key) DO UPDATE SET attempts = CASE WHEN auth_limits.expires_at < ? THEN 1 ELSE auth_limits.attempts + 1 END,
+    expires_at = CASE WHEN auth_limits.expires_at < ? THEN excluded.expires_at ELSE auth_limits.expires_at END RETURNING attempts`,
   )
     .bind(key, now + 15 * 60_000, now, now)
     .first<{ attempts: number }>();
@@ -299,7 +309,9 @@ async function route(request: Request, env: Env): Promise<Response> {
     if (path.endsWith("register")) {
       await rateLimit(env, `signup:${await digest(ip)}`, 5);
       const user = { id: crypto.randomUUID(), username };
-      const hash = await passwordHash(password);
+      const hash = env.PASSWORDS
+        ? await env.PASSWORDS.hash(password)
+        : await passwordHash(password);
       try {
         await env.DB.batch([
           env.DB.prepare(
@@ -331,7 +343,9 @@ async function route(request: Request, env: Env): Promise<Response> {
     // Match the expensive work for unknown users to reduce username enumeration by timing.
     const dummy =
       "pbkdf2-sha256:600000:00000000000000000000000000000000:" + "0".repeat(64);
-    const matches = await checkPassword(password, row?.password_hash || dummy);
+    const matches = env.PASSWORDS
+      ? await env.PASSWORDS.check(password, row?.password_hash || dummy)
+      : await checkPassword(password, row?.password_hash || dummy);
     if (!row || !matches) fail(401, "Username or password is incorrect.");
     return startSession(request, env, { id: row.id, username: row.username });
   }
@@ -374,6 +388,7 @@ async function route(request: Request, env: Env): Promise<Response> {
       version: state!.version,
       usedBytes: quota!.used_bytes,
       limitBytes: ACCOUNT_BYTES,
+      storageScope: env.storageScope || "account",
     });
   }
   if (path === "/api/library/state" && method === "PUT") {
@@ -469,8 +484,12 @@ async function route(request: Request, env: Env): Promise<Response> {
     }
     const id = text(meta.id, 100);
     validId(id);
-    const fingerprint = text(form.get("fingerprint"), 1024);
-    if (!fingerprint) fail(400, "Missing song fingerprint.");
+    const rawFingerprint = text(form.get("fingerprint"), 1024);
+    if (!rawFingerprint) fail(400, "Missing song fingerprint.");
+    // Postgres text cannot contain NUL separators used by the browser's file fingerprint.
+    const fingerprint = env.PASSWORDS
+      ? await digest(rawFingerprint)
+      : rawFingerprint;
     const duplicate = await env.DB.prepare(
       "SELECT id FROM tracks WHERE user_id = ? AND (fingerprint = ? OR id = ?)",
     )
@@ -760,13 +779,15 @@ async function route(request: Request, env: Env): Promise<Response> {
   return fail(404, "This action is not available.");
 }
 
-export async function handleApi(request: Request, env: Env) {
+export async function handleApi(request: Request, env: Env & SupabaseConfig) {
   let response: Response;
   try {
-    response = await route(request, env);
+    response = await route(request, supabaseEnvironment(env));
   } catch (error) {
     if (error instanceof ApiError)
       response = json({ error: error.message }, error.status);
+    else if (error instanceof StorageLimitError)
+      response = json({ error: error.message }, 413);
     else {
       console.error(
         "Account service error",
