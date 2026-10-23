@@ -254,6 +254,30 @@ test('background hue changes live, survives theme changes, and persists after re
   await expect(output).toHaveText('205°')
 })
 
+test('beat glow follows playback, stops when paused, and remembers its setting', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Open settings', exact: true }).click()
+  const settings = page.getByRole('dialog', { name: 'Settings', exact: true })
+  const beatGlow = settings.getByRole('switch', { name: 'Beat glow', exact: true })
+  await expect(beatGlow).toHaveAttribute('aria-checked', 'false')
+  await beatGlow.click()
+  await expect(beatGlow).toHaveAttribute('aria-checked', 'true')
+  await expect(page.locator('html')).toHaveAttribute('data-beat-glow', 'on')
+  await settings.getByRole('button', { name: 'Close dialog', exact: true }).click()
+
+  await demoSong(page).getByRole('button', { name: 'Play Soft Focus by media originals', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Pause playback', exact: true })).toBeVisible()
+  await expect.poll(async () => page.locator('html').evaluate(element => Number.parseFloat(getComputedStyle(element).getPropertyValue('--beat-pulse')) || 0)).toBeGreaterThan(0.01)
+  await page.getByRole('button', { name: 'Pause playback', exact: true }).click()
+  await expect.poll(async () => page.locator('html').evaluate(element => Number.parseFloat(getComputedStyle(element).getPropertyValue('--beat-pulse')) || 0)).toBe(0)
+
+  await page.reload()
+  await expect(page.locator('html')).toHaveAttribute('data-beat-glow', 'on')
+  await page.getByRole('button', { name: 'Open settings', exact: true }).click()
+  await expect(beatGlow).toHaveAttribute('aria-checked', 'true')
+})
+
 
 test('the larger interface fills the desktop, saves its scale, and swaps loaded dark artwork', async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 })

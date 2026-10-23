@@ -37,7 +37,7 @@ function playbackMessage(error: unknown) {
   return "This song could not be played. Try an MP3 or WAV file supported by your browser.";
 }
 
-export function usePlayer() {
+export function usePlayer(beatGlow = false) {
   const [state, setState] = useState<PlayerState>(() => ({
     current: null,
     playing: false,
@@ -61,6 +61,16 @@ export function usePlayer() {
   const previousRef = useRef<() => void>(() => {});
   const toggleRef = useRef<() => void>(() => {});
   const mountedRef = useRef(false);
+  const beatGlowRef = useRef(beatGlow);
+  const prepareBeatGlowRef = useRef<() => Promise<void>>(async () => {});
+
+  useEffect(() => {
+    beatGlowRef.current = beatGlow;
+    if (beatGlow && stateRef.current.playing)
+      void prepareBeatGlowRef.current();
+    if (!beatGlow)
+      document.documentElement.style.setProperty("--beat-pulse", "0");
+  }, [beatGlow]);
 
   const update = useCallback((patch: Partial<PlayerState>) => {
     stateRef.current = { ...stateRef.current, ...patch };
@@ -72,6 +82,7 @@ export function usePlayer() {
       const audio = audioRef.current;
       if (!audio || !wantsPlaybackRef.current) return;
       try {
+        if (beatGlowRef.current) await prepareBeatGlowRef.current();
         await audio.play();
         if (request === requestRef.current)
           update({ loading: false, error: null });
@@ -374,14 +385,89 @@ export function usePlayer() {
     audio.muted = stateRef.current.muted;
     audioRef.current = audio;
 
+    let audioContext: AudioContext | null = null;
+    let analyser: AnalyserNode | null = null;
+    let spectrum: Uint8Array<ArrayBuffer> | null = null;
+    let beatFrame = 0;
+    const root = document.documentElement;
+    const paintBeatGlow = (pulse: number) => {
+      root.style.setProperty("--beat-pulse", pulse.toFixed(3));
+      root.style.setProperty("--beat-brightness", (1 + pulse * 0.16).toFixed(3));
+      root.style.setProperty("--beat-saturation", `${140 + pulse * 32}%`);
+      root.style.setProperty("--beat-opacity", (0.68 + pulse * 0.12).toFixed(3));
+      root.style.setProperty(
+        "--beat-opacity-three",
+        (0.5 + pulse * 0.1).toFixed(3),
+      );
+    };
+    const stopBeatGlow = () => {
+      if (beatFrame) cancelAnimationFrame(beatFrame);
+      beatFrame = 0;
+      paintBeatGlow(0);
+    };
+    const drawBeatGlow = () => {
+      if (!beatGlowRef.current || audio.paused || !analyser || !spectrum) {
+        stopBeatGlow();
+        return;
+      }
+      analyser.getByteFrequencyData(spectrum);
+      const end = Math.min(16, spectrum.length);
+      let total = 0;
+      let peak = 0;
+      for (let index = 1; index < end; index++) {
+        const value = spectrum[index];
+        total += value;
+        peak = Math.max(peak, value);
+      }
+      const average = total / Math.max(1, end - 1);
+      const energy = peak * 0.68 + average * 0.32;
+      const pulse = Math.min(1, Math.max(0, (energy - 20) / 190));
+      paintBeatGlow(pulse);
+      beatFrame = requestAnimationFrame(drawBeatGlow);
+    };
+    const startBeatGlow = () => {
+      if (!beatFrame) beatFrame = requestAnimationFrame(drawBeatGlow);
+    };
+    const prepareBeatGlow = async () => {
+      if (
+        !beatGlowRef.current ||
+        matchMedia("(prefers-reduced-motion: reduce)").matches ||
+        typeof AudioContext === "undefined"
+      ) {
+        stopBeatGlow();
+        return;
+      }
+      try {
+        if (!audioContext) {
+          audioContext = new AudioContext();
+          analyser = audioContext.createAnalyser();
+          analyser.fftSize = 512;
+          analyser.smoothingTimeConstant = 0.68;
+          spectrum = new Uint8Array(analyser.frequencyBinCount);
+          const source = audioContext.createMediaElementSource(audio);
+          source.connect(analyser);
+          analyser.connect(audioContext.destination);
+        }
+        if (audioContext.state === "suspended") await audioContext.resume();
+        startBeatGlow();
+      } catch {
+        stopBeatGlow();
+      }
+    };
+    prepareBeatGlowRef.current = prepareBeatGlow;
+
     const timeUpdate = () => update({ currentTime: audio.currentTime || 0 });
     const metadata = () => {
       if (Number.isFinite(audio.duration)) update({ duration: audio.duration });
     };
-    const playing = () =>
+    const playing = () => {
       update({ playing: true, loading: false, error: null });
-    const pause = () =>
+      void prepareBeatGlow();
+    };
+    const pause = () => {
+      stopBeatGlow();
       update({ playing: false, currentTime: audio.currentTime || 0 });
+    };
     const waiting = () => {
       if (wantsPlaybackRef.current) update({ loading: true });
     };
@@ -444,6 +530,9 @@ export function usePlayer() {
       audio.pause();
       audio.removeAttribute("src");
       audio.load();
+      stopBeatGlow();
+      prepareBeatGlowRef.current = async () => {};
+      if (audioContext) void audioContext.close();
       if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
       objectUrlRef.current = null;
       audioRef.current = null;

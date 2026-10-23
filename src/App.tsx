@@ -398,6 +398,9 @@ export default function App() {
   const { theme, toggleTheme } = useTheme();
   const { scale, setScale } = useDisplayScale();
   const { hue, setHue } = useGlassHue();
+  const [beatGlow, setBeatGlow] = useState(() =>
+    readSaved("media-beat-glow", false),
+  );
   const playlistCovers = usePlaylistCovers();
   const songCovers = useSongCovers();
   const [uploaded, setUploaded] = useState<Track[]>([]);
@@ -451,7 +454,14 @@ export default function App() {
   const panelTrigger = useRef<HTMLButtonElement | null>(null);
   const lyricsFileInput = useRef<HTMLInputElement>(null);
   const dragCount = useRef(0);
-  const player = usePlayer();
+  const player = usePlayer(beatGlow);
+
+  useEffect(() => {
+    store("media-beat-glow", beatGlow);
+    document.documentElement.dataset.beatGlow = beatGlow ? "on" : "off";
+    if (!beatGlow)
+      document.documentElement.style.setProperty("--beat-pulse", "0");
+  }, [beatGlow]);
   const tracks = [
     ...uploaded,
     ...demos
@@ -2440,8 +2450,26 @@ export default function App() {
                 </button>
               ))}
             </div>
+            <div className="beat-glow-setting">
+              <div>
+                <h4>
+                  <Music2 size={17} /> Beat glow
+                </h4>
+                <p>Gently pulse the background hue with the music.</p>
+              </div>
+              <button
+                type="button"
+                className="settings-switch"
+                role="switch"
+                aria-label="Beat glow"
+                aria-checked={beatGlow}
+                onClick={() => setBeatGlow((enabled) => !enabled)}
+              >
+                <span />
+              </button>
+            </div>
             <p className="settings-hint">
-              Your background colour stays saved on this device.
+              Your background colour and beat glow stay saved on this device.
             </p>
           </section>
           <div className="info-card">
