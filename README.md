@@ -24,7 +24,9 @@ Use the regular `npm run build` command for this host: it produces root-relative
 
 The initial GitHub authorization must happen on a device/network where GitHub access is permitted. Once deployed, the app is served entirely by Cloudflare and does not need a connection to GitHub to play music. School access still depends on the school's domain policy.
 
-Your saved songs, covers, playlists, and preferences belong to the current browser/site address. A new Cloudflare address starts with a new local library, so add your songs again there. Keep the originals on your device.
+For username/password accounts with saved libraries across devices, follow the [Cloudflare account setup](docs/cloudflare-accounts.md). This connects a private R2 bucket and D1 database to the included Pages Functions. Until those resources are configured, the app continues to offer its device library.
+
+Device libraries belong to the current browser/site address. A new Cloudflare address starts with a new device library. Keep the originals on your device.
 
 ## Open on GitHub Pages
 
@@ -66,7 +68,7 @@ npm run preview
 - Use the sun/moon button in the header to switch between grey glass and charcoal dark mode. It follows your device's appearance initially and remembers your choice in this browser.
 - Open **Settings** with the gear in the header to adjust **Interface size** from 100% to 150%. The default is 115%, and your percentage is remembered. The app fills the window with only a small outer margin.
 - Built-in covers switch to darker artwork in dark mode.
-- Open a playlist and choose **Change cover** to pick a photo from your device. Covers are cropped to a square, saved in this browser, and shown in the playlist, sidebar, and playlist picker. JPEG, PNG, WebP, GIF, and AVIF images up to 10 MB are supported; **Remove cover** restores the default.
+- Open a playlist and choose **Change cover** to pick a photo from your device. Covers are cropped to a square, saved to the current library, and shown in the playlist, sidebar, and playlist picker. JPEG, PNG, WebP, GIF, and AVIF images up to 10 MB are supported; **Remove cover** restores the default.
 - Upload several songs at once, or drag audio files into the app.
 - Embedded tags provide song titles, artists, albums, and cover artwork; untagged songs use their filenames.
 - Use a song’s **… → Change song cover** menu to choose a photo from your device. The custom cover appears in the library, favorites, playlists, player, and queue, and stays saved after reload. **Reset song cover** restores its embedded artwork or default cover. Song and playlist covers are stored independently.
@@ -76,9 +78,11 @@ npm run preview
 - Search by title, artist, or album, and sort your collection.
 - Three original ambient demos are included so you can try the player before uploading. Regenerate them with `python3 scripts/generate-demo.py`.
 
-Music files are stored in **IndexedDB in this browser on this device**. Favorites, playlists, cover images, and interface preferences also remain locally. There is no account, server upload, or cross-device sync. Clearing site data removes the saved library, so keep your original audio files. Playback support for MP3, WAV, FLAC, M4A, AAC, OGG, and other audio formats depends on the browser's codecs.
+Without signing in, music files are stored in **IndexedDB in this browser on this device**. Clearing site data removes this device library, so keep your original audio files. On a configured Cloudflare deployment, open **Settings → Your account** to create a username/password account: songs, favorites, playlists, and covers then save privately to that account and return when you sign in elsewhere. Existing device songs can be copied into the account from Settings. Appearance and interface size remain device preferences. See [account setup and limits](docs/cloudflare-accounts.md).
 
-Fonts, icons, artwork, and demo audio are served locally; no third-party service or API key is required.
+Playback support for MP3, WAV, FLAC, M4A, AAC, OGG, and other audio formats depends on the browser's codecs.
+
+Fonts, icons, artwork, and demo audio are served by the site. The device library needs no external service or API key. Account libraries use Cloudflare D1, R2, and Pages Functions.
 
 ## Validate
 
@@ -86,6 +90,7 @@ Fonts, icons, artwork, and demo audio are served locally; no third-party service
 npm test
 npm run build
 npm run test:e2e
+npm run test:accounts
 ```
 
 Unit tests cover real audio metadata parsing, IndexedDB persistence, artwork, duplicate handling, favorites, and removal. Browser tests cover real decoded playback, seek and transport controls, upload persistence, playlists, validation, mobile navigation, saved light/dark appearance preferences, percentage scaling, dark artwork, custom playlist and song cover persistence, and the large-cover now-playing panel.
@@ -100,4 +105,4 @@ For a standard Playwright installation, run `npx playwright install chromium`, t
 
 ## Project
 
-Built with React, TypeScript, Vite, Lucide icons, and music-metadata. The frontend has no backend dependencies. `src/lib/library.ts` handles uploads and storage; `src/lib/usePlayer.ts` owns audio playback; `src/App.tsx` and `src/styles.css` provide the interface.
+Built with React, TypeScript, Vite, Lucide icons, and music-metadata. `src/lib/library.ts` handles local uploads and storage; `src/lib/cloud.ts` connects account libraries; `server/api.ts` implements the Cloudflare account API; `src/lib/usePlayer.ts` owns audio playback; `src/App.tsx` and `src/styles.css` provide the interface.

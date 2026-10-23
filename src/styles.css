@@ -1340,6 +1340,98 @@ input[type="range"]::-moz-range-thumb {
   width: 31rem;
   text-align: left;
 }
+.account-loading {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  font-size: 1rem;
+}
+.account-settings h3,
+.account-notice,
+.account-feedback {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.account-settings > .button {
+  margin-top: 0.875rem;
+  width: 100%;
+  white-space: normal;
+}
+.account-notice,
+.account-feedback {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.6;
+  margin-top: 0.875rem;
+  overflow-wrap: anywhere;
+}
+.account-notice svg {
+  flex-shrink: 0;
+}
+.account-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+.account-tabs button {
+  flex: 1;
+  padding: 0.625rem;
+  border-radius: 0.625rem;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  background: var(--surface);
+  font-size: 0.75rem;
+}
+.account-tabs button[aria-pressed="true"] {
+  color: var(--on-primary);
+  background: var(--primary);
+}
+.account-form {
+  display: grid;
+  gap: 0.75rem;
+}
+.account-form label {
+  display: grid;
+  gap: 0.375rem;
+  color: var(--ink);
+  font-size: 0.75rem;
+}
+.account-form input {
+  min-width: 0;
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 0.625rem;
+  color: var(--ink);
+  font-size: 1rem;
+}
+.account-form .settings-hint {
+  margin: 0;
+}
+.account-sync-error {
+  padding: 1rem;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-soft);
+  border-radius: 0.75rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+.account-sync-error .button {
+  margin-top: 0.75rem;
+}
+.account-error {
+  color: var(--ink);
+  font-weight: 600;
+}
+.account-save-status {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  margin-bottom: 0.75rem;
+}
 .settings-modal > .modal-illustration {
   margin: 0 0 1rem;
   width: 3rem;

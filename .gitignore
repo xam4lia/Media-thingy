@@ -6,3 +6,6 @@ test-results/
 *.tsbuildinfo
 .env
 .env.local
+.wrangler/
+.dev.vars*
+account-test-results/

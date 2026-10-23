@@ -6,6 +6,8 @@ import {
   saveCoverBlob,
 } from "./playlistCovers";
 import type { CoverKind } from "./playlistCovers";
+import { useAccount } from "./AccountContext";
+import { api } from "./cloud";
 
 export type PlaylistCovers = {
   covers: Record<string, string>;
@@ -15,12 +17,14 @@ export type PlaylistCovers = {
   clearError(): void;
   setCover(playlistId: string, file: File): Promise<void>;
   removeCover(playlistId: string): Promise<void>;
+  refresh(): Promise<void>;
 };
 
 /** Object URLs are session-only; the resized image bytes are persisted in IndexedDB. */
 export function usePlaylistCovers(
   kind: CoverKind = "playlist",
 ): PlaylistCovers {
+  const remote = !!useAccount()?.user;
   const [covers, setCovers] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -40,9 +44,20 @@ export function usePlaylistCovers(
     setLoading(true);
     setBusyId(null);
     setError(null);
-    hydration.current = listCoverBlobs(kind)
+    hydration.current = (
+      remote
+        ? api<{ covers: Record<string, string> }>(`/covers/${kind}`).then(
+            (data) => {
+              if (mounted.current && generation.current === current)
+                setCovers(data.covers);
+              return {} as Record<string, Blob>;
+            },
+          )
+        : listCoverBlobs(kind)
+    )
       .then((blobs) => {
         if (!mounted.current || generation.current !== current) return;
+        if (remote) return;
         const next = { ...urls.current };
         const created: string[] = [];
         try {
@@ -77,7 +92,7 @@ export function usePlaylistCovers(
       Object.values(urls.current).forEach((url) => URL.revokeObjectURL(url));
       urls.current = {};
     };
-  }, [kind]);
+  }, [kind, remote]);
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -117,6 +132,18 @@ export function usePlaylistCovers(
     (playlistId: string, file: File): Promise<void> =>
       enqueue(playlistId, async (current) => {
         const blob = await preparePlaylistCover(file);
+        if (remote) {
+          const result = await api<{ url: string }>(
+            `/covers/${kind}/${playlistId}`,
+            { method: "PUT", body: blob },
+          );
+          if (mounted.current && generation.current === current)
+            setCovers((previous) => ({
+              ...previous,
+              [playlistId]: result.url,
+            }));
+          return;
+        }
         // Create the display URL before committing; failures leave the existing cover intact.
         const url = URL.createObjectURL(blob);
         try {
@@ -135,12 +162,22 @@ export function usePlaylistCovers(
         setError(null);
         if (previous) URL.revokeObjectURL(previous);
       }),
-    [enqueue, kind],
+    [enqueue, kind, remote],
   );
 
   const removeCover = useCallback(
     (playlistId: string): Promise<void> =>
       enqueue(playlistId, async (current) => {
+        if (remote) {
+          await api(`/covers/${kind}/${playlistId}`, { method: "DELETE" });
+          if (mounted.current && generation.current === current)
+            setCovers((previous) => {
+              const next = { ...previous };
+              delete next[playlistId];
+              return next;
+            });
+          return;
+        }
         await deleteCoverBlob(playlistId, kind);
         if (!mounted.current || generation.current !== current) return;
         const previous = urls.current[playlistId];
@@ -151,8 +188,25 @@ export function usePlaylistCovers(
         setError(null);
         if (previous) URL.revokeObjectURL(previous);
       }),
-    [enqueue, kind],
+    [enqueue, kind, remote],
   );
 
-  return { covers, loading, busyId, error, clearError, setCover, removeCover };
+  const refresh = useCallback(async () => {
+    if (!remote) return;
+    const result = await api<{ covers: Record<string, string> }>(
+      `/covers/${kind}`,
+    );
+    if (mounted.current) setCovers(result.covers);
+  }, [remote, kind]);
+
+  return {
+    covers,
+    loading,
+    busyId,
+    error,
+    clearError,
+    setCover,
+    removeCover,
+    refresh,
+  };
 }

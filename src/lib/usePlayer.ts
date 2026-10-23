@@ -161,7 +161,11 @@ export function usePlayer() {
     if (wantsPlaybackRef.current || !audio.paused) {
       wantsPlaybackRef.current = false;
       audio.pause();
-      update({ playing: false, loading: false });
+      update({
+        playing: false,
+        loading: false,
+        currentTime: audio.currentTime || 0,
+      });
       return;
     }
     wantsPlaybackRef.current = true;
@@ -376,7 +380,8 @@ export function usePlayer() {
     };
     const playing = () =>
       update({ playing: true, loading: false, error: null });
-    const pause = () => update({ playing: false });
+    const pause = () =>
+      update({ playing: false, currentTime: audio.currentTime || 0 });
     const waiting = () => {
       if (wantsPlaybackRef.current) update({ loading: true });
     };

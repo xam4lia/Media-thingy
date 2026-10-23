@@ -54,6 +54,16 @@ import {
 } from "./lib/useDisplayScale";
 import { usePlaylistCovers } from "./lib/usePlaylistCovers";
 import { useSongCovers } from "./lib/useSongCovers";
+import { useAccount } from "./lib/AccountContext";
+import { AccountSettings } from "./components/AccountSettings";
+import {
+  api,
+  cloudLibrary,
+  deleteCloudTrack,
+  importCloudFiles,
+  jsonOptions,
+  updateCloudTrack,
+} from "./lib/cloud";
 
 const demos: Track[] = [
   {
@@ -248,19 +258,21 @@ function Modal({
 }
 
 export default function App() {
+  const account = useAccount();
+  const remote = !!account.user;
   const { theme, toggleTheme } = useTheme();
   const { scale, setScale } = useDisplayScale();
   const playlistCovers = usePlaylistCovers();
   const songCovers = useSongCovers();
   const [uploaded, setUploaded] = useState<Track[]>([]);
   const [demoFavorites, setDemoFavorites] = useState<string[]>(() =>
-    readSaved("media-demo-favorites", []),
+    remote ? [] : readSaved("media-demo-favorites", []),
   );
   const [hiddenDemos, setHiddenDemos] = useState<string[]>(() =>
-    readSaved("media-hidden-demos", []),
+    remote ? [] : readSaved("media-hidden-demos", []),
   );
   const [playlists, setPlaylists] = useState<Playlist[]>(() =>
-    readSaved("media-playlists", []),
+    remote ? [] : readSaved("media-playlists", []),
   );
   const [view, setView] = useState<View>("home");
   const [search, setSearch] = useState("");
@@ -285,6 +297,13 @@ export default function App() {
   const [mobileNav, setMobileNav] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [libraryLoading, setLibraryLoading] = useState(true);
+  const [libraryError, setLibraryError] = useState("");
+  const [cloudStateError, setCloudStateError] = useState("");
+  const [cloudSaving, setCloudSaving] = useState(false);
+  const cloudVersion = useRef(0);
+  const lastSavedState = useRef("");
+  const stateQueue = useRef<Promise<void>>(Promise.resolve());
+  const stateConflict = useRef(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const coverInput = useRef<HTMLInputElement>(null);
   const coverTarget = useRef<string | null>(null);
@@ -317,16 +336,100 @@ export default function App() {
   );
 
   useEffect(() => {
-    listTracks()
-      .then(setUploaded)
-      .catch(() =>
-        notify(
-          "Your library could not be opened. Check that browser storage is available.",
-          true,
-        ),
-      )
-      .finally(() => setLibraryLoading(false));
-  }, [notify]);
+    let alive = true;
+    (remote
+      ? cloudLibrary().then((data) => {
+          if (!alive) return;
+          setUploaded(data.tracks);
+          setPlaylists(data.state.playlists);
+          setDemoFavorites(data.state.demoFavorites);
+          setHiddenDemos(data.state.hiddenDemos);
+          cloudVersion.current = data.version;
+          lastSavedState.current = JSON.stringify(data.state);
+        })
+      : listTracks().then((tracks) => {
+          if (alive) setUploaded(tracks);
+        })
+    )
+      .catch((error: unknown) => {
+        if (alive)
+          setLibraryError(
+            error instanceof Error
+              ? error.message
+              : "Your library could not be opened. Try refreshing the page.",
+          );
+      })
+      .finally(() => {
+        if (alive) setLibraryLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [remote]);
+
+  function persist(key: string, value: unknown) {
+    if (!remote) store(key, value);
+  }
+  const saveCloudState = useCallback(() => {
+    const state = { playlists, demoFavorites, hiddenDemos };
+    const snapshot = JSON.stringify(state);
+    if (!remote || libraryLoading || libraryError) return Promise.resolve();
+    const operation = stateQueue.current
+      .catch(() => undefined)
+      .then(async () => {
+        if (stateConflict.current)
+          throw new Error(
+            "Your library changed in another tab or device. Refresh before editing playlists again.",
+          );
+        if (snapshot === lastSavedState.current) return;
+        setCloudSaving(true);
+        try {
+          const result = await api<{ version: number }>(
+            "/library/state",
+            jsonOptions("PUT", { state, version: cloudVersion.current }),
+          );
+          cloudVersion.current = result.version;
+          lastSavedState.current = snapshot;
+          setCloudStateError("");
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            "status" in error &&
+            error.status === 409
+          )
+            stateConflict.current = true;
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Your playlist changes could not be saved. Try again.";
+          setCloudStateError(message);
+          throw error;
+        } finally {
+          setCloudSaving(false);
+        }
+      });
+    stateQueue.current = operation;
+    return operation;
+  }, [
+    remote,
+    playlists,
+    demoFavorites,
+    hiddenDemos,
+    libraryLoading,
+    libraryError,
+  ]);
+  useEffect(() => {
+    if (!remote || libraryLoading || libraryError) return;
+    const timer = setTimeout(() => {
+      void saveCloudState().catch(() => undefined);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [remote, libraryLoading, libraryError, saveCloudState]);
+
+  async function refreshCloudSongs() {
+    setUploaded((await cloudLibrary()).tracks);
+    await songCovers.refresh();
+  }
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(null), toast.error ? 8500 : 4500);
@@ -378,8 +481,12 @@ export default function App() {
       setUploading(true);
       setUploadOpen(true);
       try {
-        const result = await importFiles(files);
-        setUploaded(await listTracks());
+        const result = await (remote
+          ? importCloudFiles(files)
+          : importFiles(files));
+        setUploaded(
+          remote ? (await cloudLibrary()).tracks : await listTracks(),
+        );
         if (result.tracks.length) {
           notify(
             `${result.tracks.length} ${result.tracks.length === 1 ? "song added" : "songs added"}. Make yourself at home.`,
@@ -402,7 +509,7 @@ export default function App() {
         if (fileInput.current) fileInput.current.value = "";
       }
     },
-    [uploading, notify],
+    [uploading, notify, remote],
   );
 
   useEffect(() => {
@@ -449,11 +556,14 @@ export default function App() {
           ? demoFavorites.filter((id) => id !== track.id)
           : [...demoFavorites, track.id];
         setDemoFavorites(next);
-        store("media-demo-favorites", next);
+        persist("media-demo-favorites", next);
       } else {
-        const updated = await updateTrack(track.id, {
-          favorite: !track.favorite,
-        });
+        const updated = await (remote ? updateCloudTrack : updateTrack)(
+          track.id,
+          {
+            favorite: !track.favorite,
+          },
+        );
         setUploaded((previous) =>
           previous.map((t) => (t.id === track.id ? updated : t)),
         );
@@ -468,9 +578,9 @@ export default function App() {
       if (track.source === "demo") {
         const next = [...hiddenDemos, track.id];
         setHiddenDemos(next);
-        store("media-hidden-demos", next);
+        persist("media-hidden-demos", next);
       } else {
-        await deleteTrack(track.id);
+        await (remote ? deleteCloudTrack : deleteTrack)(track.id);
         setUploaded((previous) => previous.filter((t) => t.id !== track.id));
       }
       if (player.current?.id === track.id) player.stop();
@@ -480,7 +590,7 @@ export default function App() {
         tracks: p.tracks.filter((id) => id !== track.id),
       }));
       setPlaylists(next);
-      store("media-playlists", next);
+      persist("media-playlists", next);
       setDeleteTarget(null);
       notify("Song removed from your library.");
     } catch {
@@ -503,7 +613,7 @@ export default function App() {
     };
     const next = [...playlists, playlist];
     setPlaylists(next);
-    store("media-playlists", next);
+    persist("media-playlists", next);
     setPlaylistOpen(false);
     setPlaylistName("");
     setPlaylistTarget(null);
@@ -520,7 +630,7 @@ export default function App() {
       p.id === playlist.id ? { ...p, tracks: [...p.tracks, track.id] } : p,
     );
     setPlaylists(next);
-    store("media-playlists", next);
+    persist("media-playlists", next);
     setPlaylistTarget(null);
     notify(`Added to “${playlist.name}”.`);
   }
@@ -532,7 +642,7 @@ export default function App() {
         : p,
     );
     setPlaylists(next);
-    store("media-playlists", next);
+    persist("media-playlists", next);
     notify("Song removed from playlist.");
   }
 
@@ -579,7 +689,7 @@ export default function App() {
       await playlistCovers.removeCover(playlist.id);
       const next = playlists.filter((p) => p.id !== playlist.id);
       setPlaylists(next);
-      store("media-playlists", next);
+      persist("media-playlists", next);
       setDeletePlaylist(null);
       navigate("home");
       notify("Playlist deleted. Your music is still here.");
@@ -634,7 +744,7 @@ export default function App() {
 
   let visible =
     view === "library"
-      ? tracks.filter((track) => track.source === "upload")
+      ? tracks.filter((track) => track.source !== "demo")
       : view === "favorites"
         ? tracks.filter((t) => t.favorite)
         : activePlaylist
@@ -821,7 +931,7 @@ export default function App() {
               onClick={() => setSettingsOpen(true)}
             >
               <span className="status-dot" />
-              Stored on this device
+              {account.user ? account.user.username : "Stored on this device"}
               <ShieldCheck size={13} />
             </button>
           </div>
@@ -870,6 +980,28 @@ export default function App() {
             </div>
           </header>
           <div className="page-content">
+            {(libraryError || cloudStateError) && (
+              <div className="account-sync-error" role="alert">
+                <p>{libraryError || cloudStateError}</p>
+                <button
+                  className="button button-glass"
+                  onClick={() => {
+                    if (libraryError || stateConflict.current)
+                      window.location.reload();
+                    else void saveCloudState().catch(() => undefined);
+                  }}
+                >
+                  {libraryError || stateConflict.current
+                    ? "Refresh library"
+                    : "Retry saving"}
+                </button>
+              </div>
+            )}
+            {remote && cloudSaving && (
+              <p className="account-save-status" role="status">
+                Saving your library…
+              </p>
+            )}
             <div className="page-title-row">
               <div>
                 <div className="page-crumb">YOUR OWN LITTLE UNIVERSE</div>
@@ -1720,7 +1852,11 @@ export default function App() {
           </button>
           <div className="upload-privacy">
             <ShieldCheck size={15} />
-            <span>Just yours. Saved in this browser, on this device.</span>
+            <span>
+              {remote
+                ? "Saved privately to your account. Up to 50 MB per song."
+                : "Just yours. Saved in this browser, on this device."}
+            </span>
           </div>
         </Modal>
       )}
@@ -1802,8 +1938,10 @@ export default function App() {
           </span>
           <h2>A little room for something new?</h2>
           <p>
-            Remove “{deleteTarget.title}” from your library and playlists? Your
-            original file stays on your device.
+            Remove “{deleteTarget.title}” from your library and playlists?{" "}
+            {remote
+              ? "This removes the account copy. Your original file stays on your device."
+              : "The original file stays on your device."}
           </p>
           <div className="modal-actions">
             <button className="button button-glass" onClick={closeDelete}>
@@ -1858,6 +1996,16 @@ export default function App() {
           <span className="section-eyebrow">YOUR LISTENING SPACE</span>
           <h2>Settings</h2>
           <p>Make this space feel right for you.</p>
+          <AccountSettings
+            beforeLeave={saveCloudState}
+            onImported={refreshCloudSongs}
+            busy={
+              uploading ||
+              libraryLoading ||
+              !!songCovers.busyId ||
+              !!playlistCovers.busyId
+            }
+          />
           <section
             className="settings-section"
             aria-labelledby="display-heading"
@@ -1922,10 +2070,13 @@ export default function App() {
           <div className="info-card">
             <ShieldCheck size={23} strokeWidth={1.4} />
             <div>
-              <strong>At home on this device</strong>
+              <strong>
+                {remote ? "At home in your account" : "At home on this device"}
+              </strong>
               <p>
-                Your songs, playlist covers, and preferences stay in this
-                browser. Clearing site data removes this library.
+                {remote
+                  ? "Your songs, favorites, playlists, and covers are saved to your account. Sign in on another device to open your library."
+                  : "Your songs, playlist covers, and preferences stay in this browser. Clearing site data removes this library."}
               </p>
             </div>
           </div>
