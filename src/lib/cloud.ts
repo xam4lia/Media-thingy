@@ -7,6 +7,7 @@ export type LibraryState = {
   playlists: { id: string; name: string; tracks: string[] }[];
   demoFavorites: string[];
   hiddenDemos: string[];
+  playCounts?: Record<string, number>;
 };
 export type CloudLibrary = {
   tracks: Track[];

@@ -61,6 +61,38 @@ test('decodes demo audio, advances time, seeks, pauses and operates the queue', 
   expect(errors).toEqual([])
 })
 
+test('Top songs ranks successful plays, ignores resume, and persists', async ({ page }) => {
+  await page.goto('/')
+  await demoSong(page).getByRole('button', { name: 'Play Soft Focus by media originals', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Pause playback', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Pause playback', exact: true }).click()
+  await page.getByRole('button', { name: 'Start playback', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Pause playback', exact: true })).toBeVisible()
+
+  await page.locator('.automatic-playlist').click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Top songs.')
+  await expect(songRows(page)).toHaveCount(1)
+  await expect(songRows(page).first()).toContainText('Soft Focus')
+  await expect(songRows(page).first().locator('.date-column')).toHaveText('1 play')
+
+  await page.getByRole('button', { name: /Listen now/ }).click()
+  await songRows(page).filter({ hasText: 'Blue Hour' }).getByRole('button', { name: 'Play Blue Hour by media originals', exact: true }).click()
+  await expect(page.locator('.now-playing-info strong')).toHaveText('Blue Hour')
+  await demoSong(page).getByRole('button', { name: 'Play Soft Focus by media originals', exact: true }).click()
+  await expect(page.locator('.now-playing-info strong')).toHaveText('Soft Focus')
+  await page.locator('.automatic-playlist').click()
+  await expect(songRows(page)).toHaveCount(2)
+  await expect(songRows(page).first()).toContainText('Soft Focus')
+  await expect(songRows(page).first().locator('.date-column')).toHaveText('2 plays')
+  await expect(songRows(page).nth(1)).toContainText('Blue Hour')
+
+  await page.reload()
+  await page.locator('.automatic-playlist').click()
+  await expect(songRows(page)).toHaveCount(2)
+  await expect(songRows(page).first()).toContainText('Soft Focus')
+  await expect(songRows(page).first().locator('.date-column')).toHaveText('2 plays')
+})
+
 test('persists uploaded audio, favorites and playlists, then removes the original safely', async ({ page }) => {
   await page.goto('/')
   await uploadSong(page)

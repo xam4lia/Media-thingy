@@ -342,6 +342,7 @@ async function route(
               playlists: [],
               demoFavorites: [],
               hiddenDemos: [],
+              playCounts: {},
             }),
           ),
         ]);
@@ -448,10 +449,29 @@ async function route(
             )
             .slice(0, 10)
         : [];
+    const playCounts = Object.fromEntries(
+      Object.entries(
+        state.playCounts &&
+          typeof state.playCounts === "object" &&
+          !Array.isArray(state.playCounts)
+          ? state.playCounts
+          : {},
+      )
+        .filter(
+          ([id, count]) =>
+            /^[a-zA-Z0-9_-]{1,100}$/.test(id) &&
+            typeof count === "number" &&
+            Number.isInteger(count) &&
+            count > 0,
+        )
+        .slice(0, 1000)
+        .map(([id, count]) => [id, Math.min(count as number, 1_000_000)]),
+    );
     const value = JSON.stringify({
       playlists,
       demoFavorites: demoIds(state.demoFavorites),
       hiddenDemos: demoIds(state.hiddenDemos),
+      playCounts,
     });
     const result = await env.DB.prepare(
       "UPDATE library_state SET value = ?, version = version + 1 WHERE user_id = ? AND version = ?",

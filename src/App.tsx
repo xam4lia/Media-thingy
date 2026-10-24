@@ -32,6 +32,7 @@ import {
   SkipBack,
   SkipForward,
   Sun,
+  Trophy,
   Trash2,
   Upload,
   Volume1,
@@ -131,6 +132,8 @@ const demos: Track[] = [
 
 type Playlist = { id: string; name: string; tracks: string[] };
 type View = "home" | "library" | "favorites" | string;
+type PlayCounts = Record<string, number>;
+const TOP_SONGS_VIEW = "top-songs";
 const acceptAudio =
   "audio/*,.mp3,.flac,.wav,.m4a,.aac,.ogg,.opus,.webm,.aiff,.aif";
 function readSaved<T>(key: string, fallback: T): T {
@@ -147,6 +150,22 @@ function store(key: string, value: unknown) {
   } catch {
     /* Library audio storage reports its own errors. */
   }
+}
+
+function normalizedPlayCounts(value: unknown): PlayCounts {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(
+        ([id, count]) =>
+          /^[a-zA-Z0-9_-]{1,100}$/.test(id) &&
+          typeof count === "number" &&
+          Number.isInteger(count) &&
+          count > 0,
+      )
+      .slice(0, 1000)
+      .map(([id, count]) => [id, Math.min(count as number, 1_000_000)]),
+  );
 }
 function time(seconds: number) {
   const n = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
@@ -413,6 +432,11 @@ export default function App() {
   const [playlists, setPlaylists] = useState<Playlist[]>(() =>
     remote ? [] : readSaved("media-playlists", []),
   );
+  const [playCounts, setPlayCounts] = useState<PlayCounts>(() =>
+    remote
+      ? {}
+      : normalizedPlayCounts(readSaved("media-play-counts", {})),
+  );
   const [view, setView] = useState<View>("home");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("recent");
@@ -454,7 +478,20 @@ export default function App() {
   const panelTrigger = useRef<HTMLButtonElement | null>(null);
   const lyricsFileInput = useRef<HTMLInputElement>(null);
   const dragCount = useRef(0);
-  const player = usePlayer(beatGlow);
+  const recordPlay = useCallback(
+    (track: Track) => {
+      setPlayCounts((previous) => {
+        const next = {
+          ...previous,
+          [track.id]: Math.min((previous[track.id] ?? 0) + 1, 1_000_000),
+        };
+        if (!remote) store("media-play-counts", next);
+        return next;
+      });
+    },
+    [remote],
+  );
+  const player = usePlayer(beatGlow, recordPlay);
 
   useEffect(() => {
     store("media-beat-glow", beatGlow);
@@ -479,6 +516,15 @@ export default function App() {
       ? { ...track, artwork: songCovers.covers[track.id] }
       : track,
   );
+  const topSongs = [...tracks]
+    .filter((track) => (playCounts[track.id] ?? 0) > 0)
+    .sort(
+      (a, b) =>
+        (playCounts[b.id] ?? 0) - (playCounts[a.id] ?? 0) ||
+        b.addedAt - a.addedAt,
+    )
+    .slice(0, 50);
+  const isTopSongs = view === TOP_SONGS_VIEW;
   const activePlaylist = playlists.find((p) => p.id === view);
   const notify = useCallback(
     (message: string, error = false) => setToast({ message, error }),
@@ -494,8 +540,15 @@ export default function App() {
           setPlaylists(data.state.playlists);
           setDemoFavorites(data.state.demoFavorites);
           setHiddenDemos(data.state.hiddenDemos);
+          const counts = normalizedPlayCounts(data.state.playCounts);
+          setPlayCounts(counts);
           cloudVersion.current = data.version;
-          lastSavedState.current = JSON.stringify(data.state);
+          lastSavedState.current = JSON.stringify({
+            playlists: data.state.playlists,
+            demoFavorites: data.state.demoFavorites,
+            hiddenDemos: data.state.hiddenDemos,
+            playCounts: counts,
+          });
         })
       : listTracks().then((tracks) => {
           if (alive) setUploaded(tracks);
@@ -521,7 +574,7 @@ export default function App() {
     if (!remote) store(key, value);
   }
   const saveCloudState = useCallback(() => {
-    const state = { playlists, demoFavorites, hiddenDemos };
+    const state = { playlists, demoFavorites, hiddenDemos, playCounts };
     const snapshot = JSON.stringify(state);
     if (!remote || libraryLoading || libraryError) return Promise.resolve();
     const operation = stateQueue.current
@@ -565,6 +618,7 @@ export default function App() {
     playlists,
     demoFavorites,
     hiddenDemos,
+    playCounts,
     libraryLoading,
     libraryError,
   ]);
@@ -741,6 +795,13 @@ export default function App() {
       }));
       setPlaylists(next);
       persist("media-playlists", next);
+      setPlayCounts((previous) => {
+        if (!(track.id in previous)) return previous;
+        const counts = { ...previous };
+        delete counts[track.id];
+        if (!remote) store("media-play-counts", counts);
+        return counts;
+      });
       setDeleteTarget(null);
       notify("Song removed from your library.");
     } catch {
@@ -953,36 +1014,41 @@ export default function App() {
   }
 
   let visible =
-    view === "library"
-      ? tracks.filter((track) => track.source !== "demo")
-      : view === "favorites"
-        ? tracks.filter((t) => t.favorite)
-        : activePlaylist
-          ? activePlaylist.tracks
-              .map((id) => tracks.find((t) => t.id === id))
-              .filter((t): t is Track => !!t)
-          : tracks;
+    isTopSongs
+      ? topSongs
+      : view === "library"
+        ? tracks.filter((track) => track.source !== "demo")
+        : view === "favorites"
+          ? tracks.filter((t) => t.favorite)
+          : activePlaylist
+            ? activePlaylist.tracks
+                .map((id) => tracks.find((t) => t.id === id))
+                .filter((t): t is Track => !!t)
+            : tracks;
   if (search.trim()) {
     const query = search.trim().toLowerCase();
     visible = visible.filter((t) =>
       `${t.title} ${t.artist} ${t.album}`.toLowerCase().includes(query),
     );
   }
-  visible = [...visible].sort((a, b) =>
-    sort === "title"
-      ? a.title.localeCompare(b.title)
-      : sort === "artist"
-        ? a.artist.localeCompare(b.artist)
-        : b.addedAt - a.addedAt,
-  );
+  if (!isTopSongs)
+    visible = [...visible].sort((a, b) =>
+      sort === "title"
+        ? a.title.localeCompare(b.title)
+        : sort === "artist"
+          ? a.artist.localeCompare(b.artist)
+          : b.addedAt - a.addedAt,
+    );
   const title =
     view === "home"
       ? "Listen now"
-      : view === "library"
-        ? "Your library"
-        : view === "favorites"
-          ? "Favorites"
-          : (activePlaylist?.name ?? "Your library");
+      : isTopSongs
+        ? "Top songs"
+        : view === "library"
+          ? "Your library"
+          : view === "favorites"
+            ? "Favorites"
+            : (activePlaylist?.name ?? "Your library");
   const current =
     tracks.find((t) => t.id === player.current?.id) ?? player.current;
   const queueTracks = (player.queue.length ? player.queue : tracks)
@@ -1111,6 +1177,18 @@ export default function App() {
               </IconButton>
             </div>
             <div className="playlists-list">
+              <button
+                className={`nav-item playlist-item automatic-playlist ${isTopSongs ? "selected" : ""}`}
+                onClick={() => navigate(TOP_SONGS_VIEW)}
+              >
+                <span className="playlist-icon">
+                  <Trophy size={15} />
+                </span>
+                <span className="truncate">Top songs</span>
+                {topSongs.length > 0 && (
+                  <span className="nav-count">{topSongs.length}</span>
+                )}
+              </button>
               {playlists.length ? (
                 playlists.map((p) => (
                   <button
@@ -1268,6 +1346,8 @@ export default function App() {
                   <span className="collection-banner-icon">
                     {view === "favorites" ? (
                       <Heart size={35} strokeWidth={1.2} fill="currentColor" />
+                    ) : isTopSongs ? (
+                      <Trophy size={35} strokeWidth={1.3} />
                     ) : (
                       <Library size={37} strokeWidth={1.3} />
                     )}
@@ -1279,17 +1359,22 @@ export default function App() {
                       ? "YOUR PLAYLIST"
                       : view === "favorites"
                         ? "A LITTLE CLOSER TO THE HEART"
-                        : "COLLECT MOMENTS, KEEP THE MUSIC"}
+                        : isTopSongs
+                          ? "BASED ON WHAT YOU PLAY"
+                          : "COLLECT MOMENTS, KEEP THE MUSIC"}
                   </span>
                   <h2>
                     {view === "favorites"
                       ? "The ones you come back to."
+                      : isTopSongs
+                        ? "Your most-played songs."
                       : activePlaylist
                         ? activePlaylist.name
                         : "Every song has a home."}
                   </h2>
                   <p>
                     {visible.length} {visible.length === 1 ? "song" : "songs"}
+                    {isTopSongs && visible.length > 0 && " · ranked by plays"}
                     {totalDuration > 0 &&
                       ` · ${Math.max(1, Math.round(totalDuration / 60))} min of good company`}
                   </p>
@@ -1346,6 +1431,8 @@ export default function App() {
                       ? "Search results"
                       : view === "home"
                         ? "In your rotation"
+                        : isTopSongs
+                          ? "Most played"
                         : view === "favorites"
                           ? "Your favorites"
                           : activePlaylist
@@ -1357,18 +1444,20 @@ export default function App() {
                     <p>A little familiar. A little new. All yours.</p>
                   )}
                 </div>
-                <label className="sort-control">
-                  <select
-                    aria-label="Sort songs"
-                    value={sort}
-                    onChange={(e) => setSort(e.target.value)}
-                  >
-                    <option value="recent">Recently added</option>
-                    <option value="title">Song title</option>
-                    <option value="artist">Artist</option>
-                  </select>
-                  <ChevronDown size={13} />
-                </label>
+                {!isTopSongs && (
+                  <label className="sort-control">
+                    <select
+                      aria-label="Sort songs"
+                      value={sort}
+                      onChange={(e) => setSort(e.target.value)}
+                    >
+                      <option value="recent">Recently added</option>
+                      <option value="title">Song title</option>
+                      <option value="artist">Artist</option>
+                    </select>
+                    <ChevronDown size={13} />
+                  </label>
+                )}
               </div>
               {libraryLoading ? (
                 <div className="empty-state">
@@ -1381,7 +1470,9 @@ export default function App() {
                     <span className="track-number">#</span>
                     <span>TITLE</span>
                     <span className="album-column">ALBUM</span>
-                    <span className="date-column">ADDED</span>
+                    <span className="date-column">
+                      {isTopSongs ? "PLAYS" : "ADDED"}
+                    </span>
                     <span className="time-column" aria-label="Duration">
                       TIME
                     </span>
@@ -1436,7 +1527,9 @@ export default function App() {
                           {track.album || "—"}
                         </span>
                         <span className="date-column">
-                          {track.source === "demo"
+                          {isTopSongs
+                            ? `${playCounts[track.id]} ${playCounts[track.id] === 1 ? "play" : "plays"}`
+                            : track.source === "demo"
                             ? "Just for you"
                             : new Intl.DateTimeFormat(undefined, {
                                 month: "short",
@@ -1557,6 +1650,8 @@ export default function App() {
                   <h3>
                     {search
                       ? "Nothing here just yet."
+                      : isTopSongs
+                        ? "Your top songs will appear here."
                       : view === "favorites"
                         ? "Keep the good ones close."
                         : activePlaylist
@@ -1566,6 +1661,8 @@ export default function App() {
                   <p>
                     {search
                       ? `No songs match “${search}”. Try another title or artist.`
+                      : isTopSongs
+                        ? "Play a song and this playlist will build itself automatically."
                       : view === "favorites"
                         ? "Tap the heart on any song to find it here."
                         : activePlaylist

@@ -49,6 +49,19 @@ test("an account restores real audio, favorites, playlists, and covers in a sepa
     .setInputFiles(song);
   const row = page.locator(".track-row").filter({ hasText: "soft-focus" });
   await expect(row).toHaveCount(1);
+  const playSaved = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/library/state") &&
+      response.request().method() === "PUT" &&
+      response.ok(),
+  );
+  await row
+    .getByRole("button", { name: "Play soft-focus by Unknown artist", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Pause playback", exact: true }),
+  ).toBeVisible();
+  await playSaved;
   await row
     .getByRole("button", { name: "Favorite soft-focus", exact: true })
     .click();
@@ -113,6 +126,10 @@ test("an account restores real audio, favorites, playlists, and covers in a sepa
     "src",
     /\/api\/media\/.+\/song\//,
   );
+  await second.locator(".automatic-playlist").click();
+  await expect(
+    second.locator(".track-row").filter({ hasText: "soft-focus" }),
+  ).toContainText("1 play");
   await restored.getByRole("button", { name: /Play soft-focus by/ }).click();
   await expect(
     second.getByRole("button", { name: "Pause playback", exact: true }),

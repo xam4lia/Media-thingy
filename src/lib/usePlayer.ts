@@ -37,7 +37,10 @@ function playbackMessage(error: unknown) {
   return "This song could not be played. Try an MP3 or WAV file supported by your browser.";
 }
 
-export function usePlayer(beatGlow = false) {
+export function usePlayer(
+  beatGlow = false,
+  onTrackStarted?: (track: Track) => void,
+) {
   const [state, setState] = useState<PlayerState>(() => ({
     current: null,
     playing: false,
@@ -62,7 +65,10 @@ export function usePlayer(beatGlow = false) {
   const toggleRef = useRef<() => void>(() => {});
   const mountedRef = useRef(false);
   const beatGlowRef = useRef(beatGlow);
+  const onTrackStartedRef = useRef(onTrackStarted);
   const prepareBeatGlowRef = useRef<() => Promise<void>>(async () => {});
+
+  onTrackStartedRef.current = onTrackStarted;
 
   useEffect(() => {
     beatGlowRef.current = beatGlow;
@@ -389,6 +395,7 @@ export function usePlayer(beatGlow = false) {
     let analyser: AnalyserNode | null = null;
     let spectrum: Uint8Array<ArrayBuffer> | null = null;
     let beatFrame = 0;
+    let countedRequest = -1;
     let rollingEnergy = 45;
     let flash = 0;
     let lastFlash = -Infinity;
@@ -479,6 +486,11 @@ export function usePlayer(beatGlow = false) {
     };
     const playing = () => {
       update({ playing: true, loading: false, error: null });
+      const track = stateRef.current.current;
+      if (track && countedRequest !== requestRef.current) {
+        countedRequest = requestRef.current;
+        onTrackStartedRef.current?.(track);
+      }
       void prepareBeatGlow();
     };
     const pause = () => {
@@ -488,7 +500,10 @@ export function usePlayer(beatGlow = false) {
     const waiting = () => {
       if (wantsPlaybackRef.current) update({ loading: true });
     };
-    const ended = () => advanceRef.current(true);
+    const ended = () => {
+      if (stateRef.current.repeat === "one") countedRequest = -1;
+      advanceRef.current(true);
+    };
     const error = () => {
       if (!stateRef.current.current || !audio.getAttribute("src")) return;
       wantsPlaybackRef.current = false;

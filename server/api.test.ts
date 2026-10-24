@@ -195,6 +195,7 @@ describe.sequential("private account library on real local D1 and R2", () => {
           {
             state: {
               playlists: [{ id: "mix", name: "My mix", tracks: ["my-song"] }],
+              playCounts: { "my-song": 7 },
             },
             version: 0,
           },
@@ -297,7 +298,10 @@ describe.sequential("private account library on real local D1 and R2", () => {
     ).json();
     expect(library).toMatchObject({
       tracks: [{ title: "My song", favorite: true }],
-      state: { playlists: [{ name: "My mix" }] },
+      state: {
+        playlists: [{ name: "My mix" }],
+        playCounts: { "my-song": 7 },
+      },
     });
     expect(
       (await request("/tracks/my-song", "DELETE", undefined, alice)).status,

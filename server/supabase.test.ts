@@ -170,6 +170,7 @@ describe
           ],
           demoFavorites: [],
           hiddenDemos: [],
+          playCounts: { "free-song": 4 },
         };
         expect(
           (await request("/library/state", "PUT", { state, version: 0 }, alice))

@@ -427,6 +427,11 @@ p {
   display: grid;
   place-items: center;
 }
+.automatic-playlist .playlist-icon {
+  color: var(--accent);
+  background: var(--liquid-glow);
+  box-shadow: inset 0 1px 0 var(--glass-sheen);
+}
 .playlist-icon > img,
 .playlist-cover-image {
   width: 100%;
