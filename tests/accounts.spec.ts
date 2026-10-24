@@ -126,6 +126,14 @@ test("an account restores real audio, favorites, playlists, and covers in a sepa
     "src",
     /\/api\/media\/.+\/song\//,
   );
+  const weeklyStats = second.getByRole("region", {
+    name: "Last 7 days",
+    exact: true,
+  });
+  await expect(weeklyStats.locator(".weekly-metric").first()).toContainText(
+    "1play",
+  );
+  await expect(weeklyStats.getByText("soft-focus", { exact: true })).toBeVisible();
   await second.locator(".automatic-playlist").click();
   await expect(
     second.locator(".track-row").filter({ hasText: "soft-focus" }),

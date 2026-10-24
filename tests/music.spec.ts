@@ -63,6 +63,9 @@ test('decodes demo audio, advances time, seeks, pauses and operates the queue', 
 
 test('Top songs ranks successful plays, ignores resume, and persists', async ({ page }) => {
   await page.goto('/')
+  const weeklyStats = page.getByRole('region', { name: 'Last 7 days', exact: true })
+  await expect(weeklyStats).toBeVisible()
+  await expect(weeklyStats.locator('.weekly-metric').nth(0)).toContainText('0plays')
   await demoSong(page).getByRole('button', { name: 'Play Soft Focus by media originals', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Pause playback', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Pause playback', exact: true }).click()
@@ -75,7 +78,7 @@ test('Top songs ranks successful plays, ignores resume, and persists', async ({ 
   await expect(songRows(page).first()).toContainText('Soft Focus')
   await expect(songRows(page).first().locator('.date-column')).toHaveText('1 play')
 
-  await page.getByRole('button', { name: /Listen now/ }).click()
+  await page.getByRole('button', { name: /Home/ }).click()
   await songRows(page).filter({ hasText: 'Blue Hour' }).getByRole('button', { name: 'Play Blue Hour by media originals', exact: true }).click()
   await expect(page.locator('.now-playing-info strong')).toHaveText('Blue Hour')
   await demoSong(page).getByRole('button', { name: 'Play Soft Focus by media originals', exact: true }).click()
@@ -87,6 +90,11 @@ test('Top songs ranks successful plays, ignores resume, and persists', async ({ 
   await expect(songRows(page).nth(1)).toContainText('Blue Hour')
 
   await page.reload()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Home.')
+  await expect(weeklyStats.locator('.weekly-metric').nth(0)).toContainText('3plays')
+  await expect(weeklyStats.locator('.weekly-metric').nth(1)).toContainText('2different songs')
+  await expect(weeklyStats.locator('.weekly-metric').nth(2)).toContainText('1listening days')
+  await expect(weeklyStats.getByText('Soft Focus', { exact: true })).toBeVisible()
   await page.locator('.automatic-playlist').click()
   await expect(songRows(page)).toHaveCount(2)
   await expect(songRows(page).first()).toContainText('Soft Focus')
@@ -158,7 +166,8 @@ test('rejects duplicates and invalid files without losing an existing upload', a
 test('mobile navigation, upload and playback fit the screen', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Listen now.')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Home.')
+  await expect(page.getByRole('region', { name: 'Last 7 days', exact: true })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
   await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Your library', exact: true }).click()
@@ -326,11 +335,13 @@ test('the larger interface fills the desktop, saves its scale, and swaps loaded 
   await expect(page.locator('.tracks-heading')).toBeVisible()
   await expect(songRows(page)).toHaveCount(3)
   const titleBox = await page.locator('.page-title-row').boundingBox()
+  const statsBox = await page.getByRole('region', { name: 'Last 7 days', exact: true }).boundingBox()
   const tracksBox = await page.locator('.tracks-heading').boundingBox()
   const firstRowBox = await songRows(page).first().boundingBox()
-  expect(tracksBox!.y).toBeGreaterThanOrEqual(titleBox!.y + titleBox!.height)
-  expect(tracksBox!.y - titleBox!.y - titleBox!.height).toBeLessThanOrEqual(80)
-  expect(firstRowBox!.y).toBeLessThan(1080 / 2)
+  expect(statsBox!.y).toBeGreaterThanOrEqual(titleBox!.y + titleBox!.height)
+  expect(tracksBox!.y).toBeGreaterThanOrEqual(statsBox!.y + statsBox!.height)
+  expect(tracksBox!.y - statsBox!.y - statsBox!.height).toBeLessThanOrEqual(40)
+  expect(firstRowBox!.y).toBeLessThan(1080 * 0.75)
   const originalFontSize = await page.getByRole('heading', { level: 1 }).evaluate(element => Number.parseFloat(getComputedStyle(element).fontSize))
 
   const demoImages = page.locator('img[src*="/demo/"]')

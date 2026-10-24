@@ -196,6 +196,9 @@ describe.sequential("private account library on real local D1 and R2", () => {
             state: {
               playlists: [{ id: "mix", name: "My mix", tracks: ["my-song"] }],
               playCounts: { "my-song": 7 },
+              listeningHistory: [
+                { date: "2026-10-24", tracks: { "my-song": 3 } },
+              ],
             },
             version: 0,
           },
@@ -301,6 +304,9 @@ describe.sequential("private account library on real local D1 and R2", () => {
       state: {
         playlists: [{ name: "My mix" }],
         playCounts: { "my-song": 7 },
+        listeningHistory: [
+          { date: "2026-10-24", tracks: { "my-song": 3 } },
+        ],
       },
     });
     expect(

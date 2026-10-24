@@ -171,6 +171,9 @@ describe
           demoFavorites: [],
           hiddenDemos: [],
           playCounts: { "free-song": 4 },
+          listeningHistory: [
+            { date: "2026-10-24", tracks: { "free-song": 2 } },
+          ],
         };
         expect(
           (await request("/library/state", "PUT", { state, version: 0 }, alice))

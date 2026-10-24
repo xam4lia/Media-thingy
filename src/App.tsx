@@ -8,8 +8,8 @@ import {
   ChevronDown,
   Disc3,
   FolderPlus,
-  Headphones,
   Heart,
+  House,
   Library,
   ListMusic,
   LoaderCircle,
@@ -133,6 +133,7 @@ const demos: Track[] = [
 type Playlist = { id: string; name: string; tracks: string[] };
 type View = "home" | "library" | "favorites" | string;
 type PlayCounts = Record<string, number>;
+type DailyListening = { date: string; tracks: PlayCounts };
 const TOP_SONGS_VIEW = "top-songs";
 const acceptAudio =
   "audio/*,.mp3,.flac,.wav,.m4a,.aac,.ogg,.opus,.webm,.aiff,.aif";
@@ -166,6 +167,47 @@ function normalizedPlayCounts(value: unknown): PlayCounts {
       .slice(0, 1000)
       .map(([id, count]) => [id, Math.min(count as number, 1_000_000)]),
   );
+}
+
+function dayKey(date = new Date()) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function normalizedListeningHistory(value: unknown): DailyListening[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(
+      (day): day is { date: string; tracks: unknown } =>
+        !!day &&
+        typeof day === "object" &&
+        typeof day.date === "string" &&
+        /^\d{4}-\d{2}-\d{2}$/.test(day.date),
+    )
+    .map((day) => ({
+      date: day.date,
+      tracks: normalizedPlayCounts(day.tracks),
+    }))
+    .filter((day) => Object.keys(day.tracks).length > 0)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-14);
+}
+
+function recentDays(count: number) {
+  return Array.from({ length: count }, (_, index) => {
+    const date = new Date();
+    date.setHours(12, 0, 0, 0);
+    date.setDate(date.getDate() - (count - index - 1));
+    return {
+      key: dayKey(date),
+      label: new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(
+        date,
+      ),
+    };
+  });
 }
 function time(seconds: number) {
   const n = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
@@ -437,6 +479,14 @@ export default function App() {
       ? {}
       : normalizedPlayCounts(readSaved("media-play-counts", {})),
   );
+  const [listeningHistory, setListeningHistory] = useState<DailyListening[]>(
+    () =>
+      remote
+        ? []
+        : normalizedListeningHistory(
+            readSaved("media-listening-history", []),
+          ),
+  );
   const [view, setView] = useState<View>("home");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("recent");
@@ -488,6 +538,30 @@ export default function App() {
         if (!remote) store("media-play-counts", next);
         return next;
       });
+      setListeningHistory((previous) => {
+        const today = dayKey();
+        const existing = previous.find((day) => day.date === today);
+        const tracksForToday = {
+          ...(existing?.tracks ?? {}),
+          [track.id]: Math.min(
+            (existing?.tracks[track.id] ?? 0) + 1,
+            10_000,
+          ),
+        };
+        const limitedTracks = Object.fromEntries(
+          Object.entries(tracksForToday)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 50),
+        );
+        const next = [
+          ...previous.filter((day) => day.date !== today),
+          { date: today, tracks: limitedTracks },
+        ]
+          .sort((a, b) => a.date.localeCompare(b.date))
+          .slice(-14);
+        if (!remote) store("media-listening-history", next);
+        return next;
+      });
     },
     [remote],
   );
@@ -524,6 +598,36 @@ export default function App() {
         b.addedAt - a.addedAt,
     )
     .slice(0, 50);
+  const availableTrackIds = new Set(tracks.map((track) => track.id));
+  const weeklyTrackCounts: PlayCounts = {};
+  const weeklyDays = recentDays(7).map((day) => {
+    const saved = listeningHistory.find((entry) => entry.date === day.key);
+    const plays = Object.entries(saved?.tracks ?? {}).reduce(
+      (total, [trackId, count]) => {
+        if (availableTrackIds.has(trackId)) {
+          weeklyTrackCounts[trackId] =
+            (weeklyTrackCounts[trackId] ?? 0) + count;
+          return total + count;
+        }
+        return total;
+      },
+      0,
+    );
+    return { ...day, plays };
+  });
+  const weeklyPlays = weeklyDays.reduce((total, day) => total + day.plays, 0);
+  const weeklyActiveDays = weeklyDays.filter((day) => day.plays > 0).length;
+  const weeklyTopId = Object.entries(weeklyTrackCounts).sort(
+    ([, a], [, b]) => b - a,
+  )[0]?.[0];
+  const weeklyRankedTracks = Object.keys(weeklyTrackCounts)
+    .sort((a, b) => weeklyTrackCounts[b] - weeklyTrackCounts[a])
+    .map((id) => tracks.find((track) => track.id === id))
+    .filter((track): track is Track => !!track);
+  const weeklyTopTrack = weeklyRankedTracks.find(
+    (track) => track.id === weeklyTopId,
+  );
+  const weeklyChartMax = Math.max(1, ...weeklyDays.map((day) => day.plays));
   const isTopSongs = view === TOP_SONGS_VIEW;
   const activePlaylist = playlists.find((p) => p.id === view);
   const notify = useCallback(
@@ -541,13 +645,18 @@ export default function App() {
           setDemoFavorites(data.state.demoFavorites);
           setHiddenDemos(data.state.hiddenDemos);
           const counts = normalizedPlayCounts(data.state.playCounts);
+          const history = normalizedListeningHistory(
+            data.state.listeningHistory,
+          );
           setPlayCounts(counts);
+          setListeningHistory(history);
           cloudVersion.current = data.version;
           lastSavedState.current = JSON.stringify({
             playlists: data.state.playlists,
             demoFavorites: data.state.demoFavorites,
             hiddenDemos: data.state.hiddenDemos,
             playCounts: counts,
+            listeningHistory: history,
           });
         })
       : listTracks().then((tracks) => {
@@ -574,7 +683,13 @@ export default function App() {
     if (!remote) store(key, value);
   }
   const saveCloudState = useCallback(() => {
-    const state = { playlists, demoFavorites, hiddenDemos, playCounts };
+    const state = {
+      playlists,
+      demoFavorites,
+      hiddenDemos,
+      playCounts,
+      listeningHistory,
+    };
     const snapshot = JSON.stringify(state);
     if (!remote || libraryLoading || libraryError) return Promise.resolve();
     const operation = stateQueue.current
@@ -619,6 +734,7 @@ export default function App() {
     demoFavorites,
     hiddenDemos,
     playCounts,
+    listeningHistory,
     libraryLoading,
     libraryError,
   ]);
@@ -801,6 +917,17 @@ export default function App() {
         delete counts[track.id];
         if (!remote) store("media-play-counts", counts);
         return counts;
+      });
+      setListeningHistory((previous) => {
+        const next = previous
+          .map((day) => {
+            const dayTracks = { ...day.tracks };
+            delete dayTracks[track.id];
+            return { ...day, tracks: dayTracks };
+          })
+          .filter((day) => Object.keys(day.tracks).length > 0);
+        if (!remote) store("media-listening-history", next);
+        return next;
       });
       setDeleteTarget(null);
       notify("Song removed from your library.");
@@ -1041,7 +1168,7 @@ export default function App() {
     );
   const title =
     view === "home"
-      ? "Listen now"
+      ? "Home"
       : isTopSongs
         ? "Top songs"
         : view === "library"
@@ -1141,8 +1268,8 @@ export default function App() {
                 className={`nav-item ${view === "home" ? "selected" : ""}`}
                 onClick={() => navigate("home")}
               >
-                <Headphones size={19} />
-                Listen now{view === "home" && <span className="nav-dot" />}
+                <House size={19} />
+                Home{view === "home" && <span className="nav-dot" />}
               </button>
               <button
                 className={`nav-item ${view === "library" ? "selected" : ""}`}
@@ -1309,6 +1436,95 @@ export default function App() {
                 Add music
               </button>
             </div>
+            {view === "home" && !search.trim() && (
+              <section className="weekly-stats" aria-labelledby="weekly-title">
+                <div className="weekly-stats-heading">
+                  <div>
+                    <span className="section-eyebrow">YOUR WEEK IN MUSIC</span>
+                    <h2 id="weekly-title">Last 7 days</h2>
+                  </div>
+                  <span className="weekly-stats-range">
+                    Updates when a song starts
+                  </span>
+                </div>
+                <div className="weekly-stats-grid">
+                  <div className="weekly-metrics">
+                    <div className="weekly-metric">
+                      <strong>{weeklyPlays}</strong>
+                      <span>{weeklyPlays === 1 ? "play" : "plays"}</span>
+                    </div>
+                    <div className="weekly-metric">
+                      <strong>{Object.keys(weeklyTrackCounts).length}</strong>
+                      <span>different songs</span>
+                    </div>
+                    <div className="weekly-metric">
+                      <strong>{weeklyActiveDays}</strong>
+                      <span>listening days</span>
+                    </div>
+                  </div>
+                  <div
+                    className="weekly-chart"
+                    role="img"
+                    aria-label={`${weeklyPlays} plays during the last 7 days`}
+                  >
+                    {weeklyDays.map((day) => (
+                      <div className="weekly-chart-day" key={day.key}>
+                        <span className="weekly-chart-value">
+                          {day.plays || ""}
+                        </span>
+                        <span className="weekly-chart-track">
+                          <span
+                            className="weekly-chart-bar"
+                            style={
+                              {
+                                "--bar-height": `${Math.max(day.plays ? 12 : 3, (day.plays / weeklyChartMax) * 100)}%`,
+                              } as React.CSSProperties
+                            }
+                          />
+                        </span>
+                        <span className="weekly-chart-label">{day.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {weeklyTopTrack ? (
+                    <button
+                      type="button"
+                      className="weekly-top-song"
+                      onClick={() =>
+                        player.play(weeklyTopTrack, weeklyRankedTracks)
+                      }
+                      aria-label={`Play this week's top song, ${weeklyTopTrack.title}`}
+                    >
+                      <Artwork track={weeklyTopTrack} />
+                      <span>
+                        <small>TOP SONG THIS WEEK</small>
+                        <strong>{weeklyTopTrack.title}</strong>
+                        <em>
+                          {weeklyTopTrack.artist} · {weeklyTrackCounts[weeklyTopTrack.id]}{" "}
+                          {weeklyTrackCounts[weeklyTopTrack.id] === 1
+                            ? "play"
+                            : "plays"}
+                        </em>
+                      </span>
+                      <span className="weekly-top-play">
+                        <Play size={16} fill="currentColor" />
+                      </span>
+                    </button>
+                  ) : (
+                    <div className="weekly-top-song weekly-top-empty">
+                      <span className="weekly-empty-icon">
+                        <Music2 size={20} />
+                      </span>
+                      <span>
+                        <small>YOUR WEEK STARTS HERE</small>
+                        <strong>Play something you love.</strong>
+                        <em>Your weekly stats will build automatically.</em>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
             {view !== "home" && (
               <section
                 className={`collection-banner ${view === "favorites" ? "favorite-banner" : ""}`}

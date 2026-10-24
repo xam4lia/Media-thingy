@@ -343,6 +343,7 @@ async function route(
               demoFavorites: [],
               hiddenDemos: [],
               playCounts: {},
+              listeningHistory: [],
             }),
           ),
         ]);
@@ -467,11 +468,52 @@ async function route(
         .slice(0, 1000)
         .map(([id, count]) => [id, Math.min(count as number, 1_000_000)]),
     );
+    const listeningHistory = (Array.isArray(state.listeningHistory)
+      ? state.listeningHistory
+      : []
+    )
+      .filter(
+        (day): day is Record<string, unknown> =>
+          !!day &&
+          typeof day === "object" &&
+          typeof (day as Record<string, unknown>).date === "string" &&
+          /^\d{4}-\d{2}-\d{2}$/.test(
+            (day as Record<string, unknown>).date as string,
+          ),
+      )
+      .map((day) => ({
+        date: day.date as string,
+        tracks: Object.fromEntries(
+          Object.entries(
+            day.tracks &&
+              typeof day.tracks === "object" &&
+              !Array.isArray(day.tracks)
+              ? day.tracks
+              : {},
+          )
+            .filter(
+              ([id, count]) =>
+                /^[a-zA-Z0-9_-]{1,100}$/.test(id) &&
+                typeof count === "number" &&
+                Number.isInteger(count) &&
+                count > 0,
+            )
+            .slice(0, 50)
+            .map(([id, count]) => [
+              id,
+              Math.min(count as number, 10_000),
+            ]),
+        ),
+      }))
+      .filter((day) => Object.keys(day.tracks).length > 0)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-14);
     const value = JSON.stringify({
       playlists,
       demoFavorites: demoIds(state.demoFavorites),
       hiddenDemos: demoIds(state.hiddenDemos),
       playCounts,
+      listeningHistory,
     });
     const result = await env.DB.prepare(
       "UPDATE library_state SET value = ?, version = version + 1 WHERE user_id = ? AND version = ?",
