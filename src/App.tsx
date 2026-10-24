@@ -2455,7 +2455,7 @@ export default function App() {
                 <h4>
                   <Music2 size={17} /> Beat glow
                 </h4>
-                <p>Gently pulse the background hue with the music.</p>
+                <p>Flash the background hue sharply on stronger beats.</p>
               </div>
               <button
                 type="button"

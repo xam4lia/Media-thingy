@@ -281,6 +281,8 @@ p {
   position: relative;
 }
 .sidebar {
+  position: relative;
+  z-index: 1;
   background: linear-gradient(160deg, var(--sidebar-start), var(--sidebar-end));
   border-right: 1px solid var(--glass-edge);
   padding: 1.9375rem 1.25rem 0;
@@ -2300,13 +2302,14 @@ input[type="range"]::-moz-range-thumb {
   display: flex;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow: clip;
 }
 .lyrics-view {
   display: flex;
   flex: 1;
   min-height: 0;
   flex-direction: column;
+  overflow: clip;
   padding: 1.125rem;
 }
 .lyrics-heading {
@@ -3266,6 +3269,18 @@ html[data-beat-glow="on"] .ambient-three {
   background: linear-gradient(90deg, transparent, var(--glass-sheen), transparent);
   opacity: 0.8;
 }
+.app-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: hsl(
+    var(--glass-hue) 96% 68% / var(--beat-flash-overlay, 0)
+  );
+  mix-blend-mode: screen;
+}
 .main-panel,
 .player {
   position: relative;
@@ -3504,6 +3519,60 @@ input[type="range"] {
     inset 0 1px 0 var(--glass-sheen),
     0 0.35rem 1rem -0.7rem var(--shadow-color);
 }
+
+/* Chromebook and other short landscape screens need more room for live lyrics. */
+@media (max-height: 820px) and (min-width: 741px) {
+  .lyrics-view {
+    padding: 0.875rem;
+  }
+
+  .lyrics-heading {
+    padding-bottom: 0.75rem;
+  }
+
+  .lyrics-heading h2 {
+    margin-top: 0.25rem;
+  }
+
+  .lyrics-song-cover {
+    width: min(100%, clamp(7rem, 22dvh, 13rem));
+    margin-top: 0.75rem;
+  }
+
+  .lyrics-lines {
+    padding-top: 1.5rem;
+    padding-bottom: 42%;
+  }
+
+  .lyrics-lines.is-synced > button {
+    padding-block: 0.45rem;
+    font-size: 1.05rem;
+  }
+
+  .lyrics-lines.is-synced > button.active {
+    font-size: 1.24rem;
+  }
+}
+
+@media (max-height: 650px) and (min-width: 741px) {
+  .queue-panel {
+    top: 0.75rem;
+  }
+
+  .lyrics-heading .section-eyebrow,
+  .lyrics-heading p {
+    display: none;
+  }
+
+  .lyrics-heading h2 {
+    margin-top: 0;
+  }
+
+  .lyrics-song-cover {
+    width: min(100%, clamp(6rem, 19dvh, 10rem));
+  }
+}
+
 .account-form input,
 .playlist-form input,
 .upload-dropzone {

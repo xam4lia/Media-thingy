@@ -389,17 +389,21 @@ export function usePlayer(beatGlow = false) {
     let analyser: AnalyserNode | null = null;
     let spectrum: Uint8Array<ArrayBuffer> | null = null;
     let beatFrame = 0;
+    let rollingEnergy = 45;
+    let flash = 0;
+    let lastFlash = -Infinity;
     const root = document.documentElement;
     const paintBeatGlow = (pulse: number) => {
       root.style.setProperty("--beat-pulse", pulse.toFixed(3));
-      root.style.setProperty("--beat-brightness", (1 + pulse * 0.32).toFixed(3));
-      root.style.setProperty("--beat-saturation", `${140 + pulse * 58}%`);
-      root.style.setProperty("--beat-opacity", (0.68 + pulse * 0.2).toFixed(3));
+      root.style.setProperty("--beat-brightness", (1 + pulse * 0.58).toFixed(3));
+      root.style.setProperty("--beat-saturation", `${140 + pulse * 105}%`);
+      root.style.setProperty("--beat-opacity", (0.68 + pulse * 0.28).toFixed(3));
       root.style.setProperty(
         "--beat-opacity-three",
-        (0.5 + pulse * 0.16).toFixed(3),
+        (0.5 + pulse * 0.24).toFixed(3),
       );
-      root.style.setProperty("--beat-shell-alpha", (pulse * 0.2).toFixed(3));
+      root.style.setProperty("--beat-shell-alpha", (pulse * 0.38).toFixed(3));
+      root.style.setProperty("--beat-flash-overlay", (pulse * 0.28).toFixed(3));
     };
     const stopBeatGlow = () => {
       if (beatFrame) cancelAnimationFrame(beatFrame);
@@ -422,7 +426,19 @@ export function usePlayer(beatGlow = false) {
       }
       const average = total / Math.max(1, end - 1);
       const energy = peak * 0.68 + average * 0.32;
-      const pulse = Math.min(1, Math.max(0, (energy - 10) / 150));
+      const now = performance.now();
+      const level = Math.min(1, Math.max(0, (energy - 8) / 145));
+      if (
+        energy > Math.max(52, rollingEnergy * 1.24) &&
+        now - lastFlash >= 360
+      ) {
+        flash = 1;
+        lastFlash = now;
+      } else {
+        flash *= 0.82;
+      }
+      rollingEnergy = rollingEnergy * 0.94 + energy * 0.06;
+      const pulse = Math.max(flash, level * 0.28);
       paintBeatGlow(pulse);
       beatFrame = requestAnimationFrame(drawBeatGlow);
     };
@@ -443,7 +459,7 @@ export function usePlayer(beatGlow = false) {
           audioContext = new AudioContext();
           analyser = audioContext.createAnalyser();
           analyser.fftSize = 512;
-          analyser.smoothingTimeConstant = 0.68;
+          analyser.smoothingTimeConstant = 0.45;
           spectrum = new Uint8Array(analyser.frequencyBinCount);
           const source = audioContext.createMediaElementSource(audio);
           source.connect(analyser);
