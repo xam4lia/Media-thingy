@@ -575,6 +575,7 @@ p {
   display: grid;
   place-items: center;
   color: var(--text-secondary);
+  overflow: hidden;
 }
 .page-content {
   max-width: none;
@@ -857,6 +858,91 @@ button.weekly-top-song:hover {
 }
 .weekly-top-play > svg {
   margin-left: 0.1rem;
+}
+.home-sections {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.home-sections > .weekly-stats + .home-tracks,
+.home-sections > .home-tracks {
+  margin-top: 0;
+}
+.home-top-songs {
+  min-width: 0;
+}
+.home-top-songs .section-heading {
+  margin-bottom: 0.75rem;
+}
+.home-top-songs .section-heading > button {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.625rem;
+}
+.home-top-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+.home-top-card {
+  position: relative;
+  min-width: 0;
+  padding: 0.55rem;
+  border: 1px solid var(--glass-edge);
+  border-radius: 1rem;
+  background: linear-gradient(145deg, var(--glass-top), var(--glass-bottom));
+  text-align: left;
+}
+.home-top-card > .artwork {
+  width: 100%;
+  aspect-ratio: 1;
+}
+.home-top-card > span:last-child {
+  display: block;
+  min-width: 0;
+  margin-top: 0.5rem;
+}
+.home-top-card strong,
+.home-top-card small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-top-card strong {
+  color: var(--ink);
+  font-size: 0.65rem;
+}
+.home-top-card small {
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.5rem;
+}
+.home-top-rank {
+  position: absolute;
+  top: 0.8rem;
+  left: 0.8rem;
+  display: grid;
+  width: 1.25rem;
+  height: 1.25rem;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--on-primary);
+  background: var(--primary);
+  font-size: 0.5rem;
+  box-shadow: 0 0.25rem 0.75rem var(--shadow-color);
+}
+.home-top-placeholder {
+  padding: 1.25rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: 1rem;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 0.65rem;
+  text-align: center;
 }
 .artwork {
   display: flex;
@@ -1925,6 +2011,147 @@ input[type="range"]::-moz-range-thumb {
   font-size: 0.5625rem;
   line-height: 1.6;
   color: var(--muted);
+}
+.settings-subheading {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 1.125rem 0 0.625rem;
+  color: var(--ink);
+  font-size: 0.6875rem;
+  font-weight: 650;
+}
+.choice-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+.choice-grid-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.choice-grid-five {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.choice-grid > button {
+  min-width: 0;
+  min-height: 2.25rem;
+  padding: 0.4rem 0.3rem;
+  border: 1px solid var(--glass-edge);
+  border-radius: 0.7rem;
+  color: var(--text-secondary);
+  background: var(--surface);
+  font-size: 0.55rem;
+}
+.choice-grid > button[aria-pressed="true"] {
+  color: var(--on-primary);
+  background: var(--primary);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+.custom-range-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.625rem;
+}
+.custom-range-row output {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.custom-image-controls,
+.profile-customizer,
+.profile-customizer > div {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+.custom-image-controls {
+  margin-top: 0.75rem;
+}
+.custom-image-controls > button:last-child,
+.profile-customizer > div > button:last-child {
+  color: var(--text-secondary);
+  font-size: 0.625rem;
+  text-decoration: underline;
+  text-underline-offset: 0.2rem;
+}
+.background-image-sliders input,
+.settings-section > #profile-hue {
+  width: 100%;
+  margin: 0.75rem 0 0;
+}
+.home-layout-list {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+.home-layout-list > div {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--glass-edge);
+  border-radius: 0.8rem;
+  background: var(--surface);
+}
+.home-layout-list strong {
+  flex: 1;
+  color: var(--ink);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+.home-layout-list > div > div {
+  display: flex;
+}
+.home-layout-list .icon-button {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+.move-up {
+  transform: rotate(180deg);
+}
+.profile-customizer {
+  margin: 1rem 0;
+}
+.profile-photo-button {
+  display: grid;
+  width: 3.5rem;
+  height: 3.5rem;
+  flex-shrink: 0;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--glass-edge);
+  border-radius: 50%;
+  color: var(--accent);
+  background: hsl(var(--profile-hue) 68% 56% / 0.2);
+}
+.profile-photo-button img,
+.local-avatar img,
+.sidebar-profile-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.custom-text-field {
+  display: block;
+  margin-bottom: 0.4rem;
+  color: var(--text-secondary);
+  font-size: 0.625rem;
+}
+.settings-text-input {
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--glass-edge);
+  border-radius: 0.75rem;
+  color: var(--ink);
+  background: var(--surface);
+}
+.sidebar-profile-image {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
 }
 .settings-reset {
   margin-top: 0.875rem;
@@ -3198,6 +3425,13 @@ input[type="range"]::-moz-range-thumb {
   .hue-presets {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+  .choice-grid,
+  .choice-grid-five {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .choice-grid-three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
   .section-heading {
     gap: 0.5rem;
   }
@@ -3821,6 +4055,159 @@ input[type="range"] {
     0 1rem 2.75rem -1rem var(--shadow-color);
   -webkit-backdrop-filter: blur(2.25rem) saturate(175%);
   backdrop-filter: blur(2.25rem) saturate(175%);
+}
+
+html[data-theme="light"] {
+  --accent: hsl(var(--accent-hue, 205) 68% 34%);
+  --focus: hsl(var(--accent-hue, 205) 58% 46%);
+}
+html[data-theme="dark"] {
+  --accent: hsl(var(--accent-hue, 205) 78% 76%);
+  --focus: hsl(var(--accent-hue, 205) 70% 68%);
+}
+.custom-background-layer {
+  display: none;
+  position: fixed;
+  inset: -3rem;
+  z-index: -1;
+  pointer-events: none;
+  background-position: center;
+  background-size: cover;
+  filter: blur(var(--background-blur, 18px)) saturate(120%);
+  opacity: calc(1 - var(--background-dim, 0.42));
+  transform: scale(1.05);
+}
+html[data-background-style="image"] .custom-background-layer,
+html[data-background-style="artwork"] .custom-background-layer {
+  display: block;
+}
+html[data-background-style="gradient"] body {
+  background: linear-gradient(
+    145deg,
+    hsl(var(--glass-hue) 42% 22%),
+    hsl(calc(var(--glass-hue) + 62) 46% 40%),
+    var(--page-bg)
+  );
+}
+html[data-theme="light"][data-background-style="gradient"] body {
+  background: linear-gradient(
+    145deg,
+    hsl(var(--glass-hue) 55% 86%),
+    hsl(calc(var(--glass-hue) + 62) 54% 90%),
+    var(--page-bg)
+  );
+}
+html[data-background-style="solid"] body {
+  background: var(--page-bg);
+}
+html[data-background-style="solid"] .ambient,
+html[data-background-style="gradient"] .ambient {
+  opacity: 0.12;
+  animation: none;
+}
+html[data-background-style="image"] body,
+html[data-background-style="artwork"] body {
+  background: color-mix(in srgb, var(--page-bg), transparent 32%);
+}
+.app-shell {
+  background:
+    radial-gradient(circle at 72% -25%, var(--liquid-glow), transparent 35%),
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--glass-top) var(--custom-glass, 70%), transparent),
+      color-mix(in srgb, var(--glass-bottom) var(--custom-glass, 70%), transparent)
+    );
+  -webkit-backdrop-filter: blur(var(--custom-glass-blur, 3.25rem)) saturate(180%);
+  backdrop-filter: blur(var(--custom-glass-blur, 3.25rem)) saturate(180%);
+}
+.sidebar,
+.main-panel,
+.player,
+.modal,
+.queue-panel {
+  -webkit-backdrop-filter: blur(var(--custom-glass-blur, 3.25rem)) saturate(175%);
+  backdrop-filter: blur(var(--custom-glass-blur, 3.25rem)) saturate(175%);
+}
+html[data-artwork-shape="square"] :is(.artwork, .playlist-cover-button, .playlist-cover-image, .now-playing-large-cover) {
+  border-radius: 0.15rem !important;
+}
+html[data-artwork-shape="circle"] :is(.artwork, .playlist-cover-button, .playlist-cover-image, .now-playing-large-cover) {
+  border-radius: 50% !important;
+}
+html[data-density="compact"] :is(.nav-item, .track-row) {
+  padding-block: 0.42rem;
+}
+html[data-density="compact"] .page-content {
+  padding-top: 0.2rem;
+}
+html[data-density="spacious"] :is(.nav-item, .track-row) {
+  padding-block: 0.95rem;
+}
+html[data-density="spacious"] .tracks-section {
+  margin-top: 2.35rem;
+}
+html[data-player-size="compact"] .app-shell {
+  grid-template-rows: minmax(0, 1fr) 4.75rem;
+}
+html[data-player-size="compact"] .player {
+  padding-block: 0.35rem;
+}
+html[data-player-size="compact"] .queue-panel {
+  bottom: 5.5rem;
+}
+html[data-player-size="compact"] .now-playing-open > .artwork {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+html[data-player-size="large"] .app-shell {
+  grid-template-rows: minmax(0, 1fr) 7.5rem;
+}
+html[data-player-size="large"] .queue-panel {
+  bottom: 8.25rem;
+}
+html[data-player-size="large"] .now-playing-open > .artwork {
+  width: 4rem;
+  height: 4rem;
+}
+html[data-player-size="large"] .main-play {
+  width: 2.9rem;
+  height: 2.9rem;
+}
+@container (max-width: 68.75rem) {
+  .home-top-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .home-top-card:nth-child(n + 4) {
+    display: none;
+  }
+}
+@container (max-width: 46.25rem) {
+  .home-top-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .home-top-card:nth-child(3) {
+    display: none;
+  }
+  html[data-player-size="compact"] .app-shell {
+    grid-template-rows: minmax(0, 1fr) 5.75rem;
+  }
+  html[data-player-size="compact"] .sidebar,
+  html[data-player-size="compact"] .nav-scrim {
+    bottom: 5.75rem;
+  }
+  html[data-player-size="compact"] .queue-panel {
+    bottom: 6.5rem;
+  }
+  html[data-player-size="large"] .app-shell {
+    grid-template-rows: minmax(0, 1fr) 8.25rem;
+  }
+  html[data-player-size="large"] .sidebar,
+  html[data-player-size="large"] .nav-scrim {
+    bottom: 8.25rem;
+  }
+  html[data-player-size="large"] .queue-panel {
+    bottom: 9rem;
+  }
 }
 @keyframes liquid-drift-one {
   from {

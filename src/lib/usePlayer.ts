@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getTrackBlob, type Track } from "./library";
 
 export type RepeatMode = "off" | "all" | "one";
+export type BeatMode = "off" | "soft" | "strong" | "strobe";
 
 interface PlayerState {
   current: Track | null;
@@ -38,7 +39,7 @@ function playbackMessage(error: unknown) {
 }
 
 export function usePlayer(
-  beatGlow = false,
+  beatMode: BeatMode = "off",
   onTrackStarted?: (track: Track) => void,
 ) {
   const [state, setState] = useState<PlayerState>(() => ({
@@ -64,19 +65,19 @@ export function usePlayer(
   const previousRef = useRef<() => void>(() => {});
   const toggleRef = useRef<() => void>(() => {});
   const mountedRef = useRef(false);
-  const beatGlowRef = useRef(beatGlow);
+  const beatModeRef = useRef(beatMode);
   const onTrackStartedRef = useRef(onTrackStarted);
   const prepareBeatGlowRef = useRef<() => Promise<void>>(async () => {});
 
   onTrackStartedRef.current = onTrackStarted;
 
   useEffect(() => {
-    beatGlowRef.current = beatGlow;
-    if (beatGlow && stateRef.current.playing)
+    beatModeRef.current = beatMode;
+    if (beatMode !== "off" && stateRef.current.playing)
       void prepareBeatGlowRef.current();
-    if (!beatGlow)
+    if (beatMode === "off")
       document.documentElement.style.setProperty("--beat-pulse", "0");
-  }, [beatGlow]);
+  }, [beatMode]);
 
   const update = useCallback((patch: Partial<PlayerState>) => {
     stateRef.current = { ...stateRef.current, ...patch };
@@ -88,7 +89,7 @@ export function usePlayer(
       const audio = audioRef.current;
       if (!audio || !wantsPlaybackRef.current) return;
       try {
-        if (beatGlowRef.current) await prepareBeatGlowRef.current();
+        if (beatModeRef.current !== "off") await prepareBeatGlowRef.current();
         await audio.play();
         if (request === requestRef.current)
           update({ loading: false, error: null });
@@ -418,7 +419,7 @@ export function usePlayer(
       paintBeatGlow(0);
     };
     const drawBeatGlow = () => {
-      if (!beatGlowRef.current || audio.paused || !analyser || !spectrum) {
+      if (beatModeRef.current === "off" || audio.paused || !analyser || !spectrum) {
         stopBeatGlow();
         return;
       }
@@ -445,7 +446,12 @@ export function usePlayer(
         flash *= 0.82;
       }
       rollingEnergy = rollingEnergy * 0.94 + energy * 0.06;
-      const pulse = Math.max(flash, level * 0.28);
+      const pulse =
+        beatModeRef.current === "soft"
+          ? level * 0.32
+          : beatModeRef.current === "strong"
+            ? Math.max(flash * 0.68, level * 0.38)
+            : Math.max(flash, level * 0.28);
       paintBeatGlow(pulse);
       beatFrame = requestAnimationFrame(drawBeatGlow);
     };
@@ -454,7 +460,7 @@ export function usePlayer(
     };
     const prepareBeatGlow = async () => {
       if (
-        !beatGlowRef.current ||
+        beatModeRef.current === "off" ||
         matchMedia("(prefers-reduced-motion: reduce)").matches ||
         typeof AudioContext === "undefined"
       ) {

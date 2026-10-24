@@ -47,7 +47,7 @@ import {
   updateTrack,
 } from "./lib/library";
 import type { Track } from "./lib/library";
-import { usePlayer } from "./lib/usePlayer";
+import { usePlayer, type BeatMode } from "./lib/usePlayer";
 import { useTheme } from "./lib/useTheme";
 import {
   DEFAULT_SCALE,
@@ -134,7 +134,43 @@ type Playlist = { id: string; name: string; tracks: string[] };
 type View = "home" | "library" | "favorites" | string;
 type PlayCounts = Record<string, number>;
 type DailyListening = { date: string; tracks: PlayCounts };
+type HomeSection = "weekly" | "top" | "rotation";
+type Customization = {
+  glass: number;
+  accentHue: number;
+  backgroundStyle: "liquid" | "gradient" | "solid" | "artwork" | "image";
+  beatMode: BeatMode;
+  playerSize: "compact" | "standard" | "large";
+  artworkShape: "square" | "rounded" | "circle";
+  density: "compact" | "comfortable" | "spacious";
+  homeOrder: HomeSection[];
+  homeVisible: Record<HomeSection, boolean>;
+  backgroundImage: string;
+  backgroundBlur: number;
+  backgroundDim: number;
+  greeting: string;
+  profileHue: number;
+  profileImage: string;
+};
 const TOP_SONGS_VIEW = "top-songs";
+const CUSTOMIZATION_KEY = "media-customization-v1";
+const defaultCustomization: Customization = {
+  glass: 70,
+  accentHue: 205,
+  backgroundStyle: "liquid",
+  beatMode: "off",
+  playerSize: "standard",
+  artworkShape: "rounded",
+  density: "comfortable",
+  homeOrder: ["weekly", "top", "rotation"],
+  homeVisible: { weekly: true, top: true, rotation: true },
+  backgroundImage: "",
+  backgroundBlur: 18,
+  backgroundDim: 42,
+  greeting: "",
+  profileHue: 205,
+  profileImage: "",
+};
 const acceptAudio =
   "audio/*,.mp3,.flac,.wav,.m4a,.aac,.ogg,.opus,.webm,.aiff,.aif";
 function readSaved<T>(key: string, fallback: T): T {
@@ -151,6 +187,52 @@ function store(key: string, value: unknown) {
   } catch {
     /* Library audio storage reports its own errors. */
   }
+}
+
+function savedCustomization(): Customization {
+  const saved = readSaved<Partial<Customization>>(CUSTOMIZATION_KEY, {});
+  return {
+    ...defaultCustomization,
+    ...saved,
+    beatMode:
+      saved.beatMode ??
+      (readSaved("media-beat-glow", false) ? "strobe" : "off"),
+    homeOrder:
+      Array.isArray(saved.homeOrder) && saved.homeOrder.length === 3
+        ? saved.homeOrder
+        : defaultCustomization.homeOrder,
+    homeVisible: {
+      ...defaultCustomization.homeVisible,
+      ...(saved.homeVisible ?? {}),
+    },
+  };
+}
+
+async function resizedImage(file: File, maxDimension: number, quality = 0.82) {
+  if (!file.type.startsWith("image/"))
+    throw new Error("Choose a JPG, PNG, WebP, GIF, or AVIF image.");
+  if (file.size > 12 * 1024 * 1024)
+    throw new Error("Choose an image smaller than 12 MB.");
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  const blob = await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob(
+      (value) => (value ? resolve(value) : reject(new Error("The image could not be prepared."))),
+      "image/webp",
+      quality,
+    ),
+  );
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("The image could not be read."));
+    reader.readAsDataURL(blob);
+  });
 }
 
 function normalizedPlayCounts(value: unknown): PlayCounts {
@@ -459,9 +541,7 @@ export default function App() {
   const { theme, toggleTheme } = useTheme();
   const { scale, setScale } = useDisplayScale();
   const { hue, setHue } = useGlassHue();
-  const [beatGlow, setBeatGlow] = useState(() =>
-    readSaved("media-beat-glow", false),
-  );
+  const [customization, setCustomization] = useState(savedCustomization);
   const playlistCovers = usePlaylistCovers();
   const songCovers = useSongCovers();
   const [uploaded, setUploaded] = useState<Track[]>([]);
@@ -527,6 +607,8 @@ export default function App() {
   const songCoverTarget = useRef<string | null>(null);
   const panelTrigger = useRef<HTMLButtonElement | null>(null);
   const lyricsFileInput = useRef<HTMLInputElement>(null);
+  const backgroundImageInput = useRef<HTMLInputElement>(null);
+  const profileImageInput = useRef<HTMLInputElement>(null);
   const dragCount = useRef(0);
   const recordPlay = useCallback(
     (track: Track) => {
@@ -565,14 +647,29 @@ export default function App() {
     },
     [remote],
   );
-  const player = usePlayer(beatGlow, recordPlay);
+  const player = usePlayer(customization.beatMode, recordPlay);
 
   useEffect(() => {
-    store("media-beat-glow", beatGlow);
-    document.documentElement.dataset.beatGlow = beatGlow ? "on" : "off";
-    if (!beatGlow)
+    store(CUSTOMIZATION_KEY, customization);
+    const root = document.documentElement;
+    root.dataset.beatGlow = customization.beatMode === "off" ? "off" : "on";
+    root.dataset.beatMode = customization.beatMode;
+    root.dataset.backgroundStyle = customization.backgroundStyle;
+    root.dataset.playerSize = customization.playerSize;
+    root.dataset.artworkShape = customization.artworkShape;
+    root.dataset.density = customization.density;
+    root.style.setProperty("--custom-glass", `${customization.glass}%`);
+    root.style.setProperty(
+      "--custom-glass-blur",
+      `${0.75 + customization.glass * 0.0375}rem`,
+    );
+    root.style.setProperty("--accent-hue", String(customization.accentHue));
+    root.style.setProperty("--background-blur", `${customization.backgroundBlur}px`);
+    root.style.setProperty("--background-dim", String(customization.backgroundDim / 100));
+    root.style.setProperty("--profile-hue", String(customization.profileHue));
+    if (customization.beatMode === "off")
       document.documentElement.style.setProperty("--beat-pulse", "0");
-  }, [beatGlow]);
+  }, [customization]);
   const tracks = [
     ...uploaded,
     ...demos
@@ -634,6 +731,41 @@ export default function App() {
     (message: string, error = false) => setToast({ message, error }),
     [],
   );
+  const customize = useCallback(
+    (patch: Partial<Customization>) =>
+      setCustomization((previous) => ({ ...previous, ...patch })),
+    [],
+  );
+
+  function moveHomeSection(section: HomeSection, direction: -1 | 1) {
+    const order = [...customization.homeOrder];
+    const index = order.indexOf(section);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= order.length) return;
+    [order[index], order[target]] = [order[target], order[index]];
+    customize({ homeOrder: order });
+  }
+
+  async function saveCustomImage(
+    file: File,
+    target: "backgroundImage" | "profileImage",
+  ) {
+    try {
+      const image = await resizedImage(
+        file,
+        target === "backgroundImage" ? 1920 : 320,
+      );
+      customize({
+        [target]: image,
+        ...(target === "backgroundImage"
+          ? { backgroundStyle: "image" as const }
+          : {}),
+      });
+      notify(target === "backgroundImage" ? "Background updated." : "Profile photo updated.");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "That image could not be saved.", true);
+    }
+  }
 
   useEffect(() => {
     let alive = true;
@@ -1168,7 +1300,7 @@ export default function App() {
     );
   const title =
     view === "home"
-      ? "Home"
+      ? customization.greeting.trim() || "Home"
       : isTopSongs
         ? "Top songs"
         : view === "library"
@@ -1235,6 +1367,20 @@ export default function App() {
 
   return (
     <>
+      <div
+        className="custom-background-layer"
+        aria-hidden="true"
+        style={{
+          backgroundImage:
+            customization.backgroundStyle === "image" && customization.backgroundImage
+              ? `url(${customization.backgroundImage})`
+              : customization.backgroundStyle === "artwork" && current?.artwork
+                ? `url(${current.artwork})`
+                : undefined,
+          backgroundColor:
+            customization.backgroundStyle === "artwork" ? current?.color : undefined,
+        }}
+      />
       <div className="ambient ambient-one" />
       <div className="ambient ambient-two" />
       <div className="ambient ambient-three" />
@@ -1347,8 +1493,15 @@ export default function App() {
             <button
               className="storage-status"
               onClick={() => setSettingsOpen(true)}
+              style={{
+                color: `hsl(${customization.profileHue} 62% ${theme === "dark" ? 72 : 36}%)`,
+              }}
             >
-              <span className="status-dot" />
+              {customization.profileImage ? (
+                <img className="sidebar-profile-image" src={customization.profileImage} alt="" />
+              ) : (
+                <span className="status-dot" />
+              )}
               {account.user ? account.user.username : "Stored on this device"}
               <ShieldCheck size={13} />
             </button>
@@ -1393,7 +1546,11 @@ export default function App() {
                 aria-label="Open settings"
                 title="Settings"
               >
-                <Settings2 size={18} />
+                {customization.profileImage ? (
+                  <img src={customization.profileImage} alt="" />
+                ) : (
+                  <Settings2 size={18} />
+                )}
               </button>
             </div>
           </header>
@@ -1436,8 +1593,13 @@ export default function App() {
                 Add music
               </button>
             </div>
-            {view === "home" && !search.trim() && (
-              <section className="weekly-stats" aria-labelledby="weekly-title">
+            <div className={view === "home" ? "home-sections" : ""}>
+            {view === "home" && !search.trim() && customization.homeVisible.weekly && (
+              <section
+                className="weekly-stats"
+                aria-labelledby="weekly-title"
+                style={{ order: customization.homeOrder.indexOf("weekly") }}
+              >
                 <div className="weekly-stats-heading">
                   <div>
                     <span className="section-eyebrow">YOUR WEEK IN MUSIC</span>
@@ -1523,6 +1685,44 @@ export default function App() {
                     </div>
                   )}
                 </div>
+              </section>
+            )}
+            {view === "home" && !search.trim() && customization.homeVisible.top && (
+              <section
+                className="home-top-songs"
+                aria-labelledby="home-top-title"
+                style={{ order: customization.homeOrder.indexOf("top") }}
+              >
+                <div className="section-heading">
+                  <div>
+                    <h2 id="home-top-title">Top songs</h2>
+                    <p>Your most-played music, ready to go again.</p>
+                  </div>
+                  <button type="button" onClick={() => navigate(TOP_SONGS_VIEW)}>
+                    View all <ArrowRight size={14} />
+                  </button>
+                </div>
+                {topSongs.length ? (
+                  <div className="home-top-grid">
+                    {topSongs.slice(0, 5).map((track, index) => (
+                      <button
+                        type="button"
+                        key={track.id}
+                        className="home-top-card"
+                        onClick={() => player.play(track, topSongs)}
+                      >
+                        <Artwork track={track} />
+                        <span className="home-top-rank">{index + 1}</span>
+                        <span>
+                          <strong>{track.title}</strong>
+                          <small>{playCounts[track.id]} {playCounts[track.id] === 1 ? "play" : "plays"}</small>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="home-top-placeholder">Your Top songs playlist will appear after you start listening.</p>
+                )}
               </section>
             )}
             {view !== "home" && (
@@ -1639,6 +1839,12 @@ export default function App() {
             )}
             <section
               className={`tracks-section${view === "home" ? " home-tracks" : ""}`}
+              hidden={view === "home" && !search.trim() && !customization.homeVisible.rotation}
+              style={
+                view === "home"
+                  ? { order: customization.homeOrder.indexOf("rotation") }
+                  : undefined
+              }
             >
               <div className="section-heading tracks-heading">
                 <div>
@@ -1912,6 +2118,7 @@ export default function App() {
                 </div>
               )}
             </section>
+            </div>
             <footer className="page-footer">
               <span>
                 <Disc3 size={13} />A little less noise. A little more you.
@@ -2375,6 +2582,30 @@ export default function App() {
           if (file) void saveSongCover(file);
         }}
       />
+      <input
+        ref={backgroundImageInput}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+        className="file-input"
+        aria-label="Choose custom background"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void saveCustomImage(file, "backgroundImage");
+          event.target.value = "";
+        }}
+      />
+      <input
+        ref={profileImageInput}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+        className="file-input"
+        aria-label="Choose profile photo"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void saveCustomImage(file, "profileImage");
+          event.target.value = "";
+        }}
+      />
       {uploadOpen && (
         <Modal title="Add your music" close={closeUpload}>
           <span className="modal-illustration">
@@ -2715,6 +2946,39 @@ export default function App() {
               Your size preference stays saved on this device.
             </p>
           </section>
+          <section className="settings-section" aria-labelledby="layout-heading">
+            <div className="settings-section-heading">
+              <div>
+                <h3 id="layout-heading">Layout and artwork</h3>
+                <p>Choose the player size, spacing, and cover shape.</p>
+              </div>
+            </div>
+            <h4 className="settings-subheading">Player size</h4>
+            <div className="choice-grid choice-grid-three">
+              {(["compact", "standard", "large"] as const).map((size) => (
+                <button type="button" key={size} aria-label={`Use ${size} player`} aria-pressed={customization.playerSize === size} onClick={() => customize({ playerSize: size })}>
+                  {size[0].toUpperCase() + size.slice(1)}
+                </button>
+              ))}
+            </div>
+            <h4 className="settings-subheading">Artwork shape</h4>
+            <div className="choice-grid choice-grid-three">
+              {(["square", "rounded", "circle"] as const).map((shape) => (
+                <button type="button" key={shape} aria-label={`Use ${shape} artwork`} aria-pressed={customization.artworkShape === shape} onClick={() => customize({ artworkShape: shape })}>
+                  {shape[0].toUpperCase() + shape.slice(1)}
+                </button>
+              ))}
+            </div>
+            <h4 className="settings-subheading">Spacing</h4>
+            <div className="choice-grid choice-grid-three">
+              {(["compact", "comfortable", "spacious"] as const).map((density) => (
+                <button type="button" key={density} aria-label={`Use ${density} spacing`} aria-pressed={customization.density === density} onClick={() => customize({ density })}>
+                  {density[0].toUpperCase() + density.slice(1)}
+                </button>
+              ))}
+            </div>
+            <p className="settings-hint">Interface size above controls text and control size; spacing changes the room between items.</p>
+          </section>
           <section
             className="settings-section hue-settings"
             aria-labelledby="hue-heading"
@@ -2763,28 +3027,142 @@ export default function App() {
                 </button>
               ))}
             </div>
-            <div className="beat-glow-setting">
-              <div>
-                <h4>
-                  <Music2 size={17} /> Beat glow
-                </h4>
-                <p>Flash the background hue sharply on stronger beats.</p>
+            <div className="custom-range-row">
+              <label htmlFor="glass-intensity">Glass intensity</label>
+              <output htmlFor="glass-intensity">{customization.glass}%</output>
+            </div>
+            <input
+              id="glass-intensity"
+              type="range"
+              aria-label="Glass intensity"
+              min={10}
+              max={100}
+              value={customization.glass}
+              onChange={(event) => customize({ glass: Number(event.target.value) })}
+              style={{ "--progress": `${customization.glass}%` } as React.CSSProperties}
+            />
+            <div className="custom-range-row">
+              <label htmlFor="accent-hue">Accent colour</label>
+              <output htmlFor="accent-hue">{customization.accentHue}°</output>
+            </div>
+            <input
+              id="accent-hue"
+              className="hue-slider"
+              type="range"
+              aria-label="Accent colour"
+              min={0}
+              max={360}
+              value={customization.accentHue}
+              onChange={(event) => customize({ accentHue: Number(event.target.value) })}
+              style={{ "--current-hue": customization.accentHue } as React.CSSProperties}
+            />
+            <h4 className="settings-subheading">Background style</h4>
+            <div className="choice-grid choice-grid-five">
+              {(["liquid", "gradient", "solid", "artwork", "image"] as const).map((style) => (
+                <button
+                  type="button"
+                  key={style}
+                  aria-pressed={customization.backgroundStyle === style}
+                  onClick={() => customize({ backgroundStyle: style })}
+                >
+                  {style === "artwork" ? "Album art" : style[0].toUpperCase() + style.slice(1)}
+                </button>
+              ))}
+            </div>
+            {customization.backgroundStyle === "image" && (
+              <div className="custom-image-controls">
+                <button className="button button-glass" type="button" onClick={() => backgroundImageInput.current?.click()}>
+                  <Camera size={16} /> {customization.backgroundImage ? "Change background" : "Choose background"}
+                </button>
+                {customization.backgroundImage && (
+                  <button type="button" onClick={() => customize({ backgroundImage: "" })}>Remove</button>
+                )}
               </div>
-              <button
-                type="button"
-                className="settings-switch"
-                role="switch"
-                aria-label="Beat glow"
-                aria-checked={beatGlow}
-                onClick={() => setBeatGlow((enabled) => !enabled)}
-              >
-                <span />
-              </button>
+            )}
+            {(["image", "artwork"] as const).includes(customization.backgroundStyle as "image" | "artwork") && (
+              <div className="background-image-sliders">
+                <div className="custom-range-row">
+                  <label htmlFor="background-blur">Background blur</label>
+                  <output htmlFor="background-blur">{customization.backgroundBlur}px</output>
+                </div>
+                <input id="background-blur" type="range" aria-label="Background blur" min={0} max={40} value={customization.backgroundBlur} onChange={(event) => customize({ backgroundBlur: Number(event.target.value) })} style={{ "--progress": `${customization.backgroundBlur * 2.5}%` } as React.CSSProperties} />
+                <div className="custom-range-row">
+                  <label htmlFor="background-dim">Background dim</label>
+                  <output htmlFor="background-dim">{customization.backgroundDim}%</output>
+                </div>
+                <input id="background-dim" type="range" aria-label="Background dim" min={0} max={80} value={customization.backgroundDim} onChange={(event) => customize({ backgroundDim: Number(event.target.value) })} style={{ "--progress": `${customization.backgroundDim * 1.25}%` } as React.CSSProperties} />
+              </div>
+            )}
+            <h4 className="settings-subheading"><Music2 size={16} /> Beat effect</h4>
+            <div className="choice-grid">
+              {(["off", "soft", "strong", "strobe"] as BeatMode[]).map((mode) => (
+                <button type="button" key={mode} aria-label={`Use ${mode} beat effect`} aria-pressed={customization.beatMode === mode} onClick={() => customize({ beatMode: mode })}>
+                  {mode[0].toUpperCase() + mode.slice(1)}
+                </button>
+              ))}
             </div>
             <p className="settings-hint">
-              Your background colour and beat glow stay saved on this device.
+              Appearance choices stay saved on this device.
             </p>
           </section>
+          <section className="settings-section" aria-labelledby="home-layout-heading">
+            <div className="settings-section-heading">
+              <div>
+                <h3 id="home-layout-heading">Home layout</h3>
+                <p>Show, hide, and reorder the sections on Home.</p>
+              </div>
+            </div>
+            <div className="home-layout-list">
+              {customization.homeOrder.map((section, index) => (
+                <div key={section}>
+                  <button
+                    type="button"
+                    className="settings-switch"
+                    role="switch"
+                    aria-label={`Show ${section} on Home`}
+                    aria-checked={customization.homeVisible[section]}
+                    onClick={() => customize({ homeVisible: { ...customization.homeVisible, [section]: !customization.homeVisible[section] } })}
+                  ><span /></button>
+                  <strong>{section === "weekly" ? "Weekly stats" : section === "top" ? "Top songs" : "Rotation"}</strong>
+                  <div>
+                    <IconButton label={`Move ${section} up`} disabled={index === 0} onClick={() => moveHomeSection(section, -1)}><ChevronDown className="move-up" size={16} /></IconButton>
+                    <IconButton label={`Move ${section} down`} disabled={index === customization.homeOrder.length - 1} onClick={() => moveHomeSection(section, 1)}><ChevronDown size={16} /></IconButton>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+          <section className="settings-section" aria-labelledby="profile-heading">
+            <div className="settings-section-heading">
+              <div>
+                <h3 id="profile-heading">Profile appearance</h3>
+                <p>Add a local photo, greeting, and username colour.</p>
+              </div>
+            </div>
+            <div className="profile-customizer">
+              <button type="button" className="profile-photo-button" onClick={() => profileImageInput.current?.click()} aria-label="Change profile photo">
+                {customization.profileImage ? <img src={customization.profileImage} alt="" /> : <Camera size={21} />}
+              </button>
+              <div>
+                <button type="button" className="button button-glass" onClick={() => profileImageInput.current?.click()}>{customization.profileImage ? "Change photo" : "Add photo"}</button>
+                {customization.profileImage && <button type="button" onClick={() => customize({ profileImage: "" })}>Remove</button>}
+              </div>
+            </div>
+            <label className="custom-text-field" htmlFor="custom-greeting">Home greeting</label>
+            <input id="custom-greeting" className="settings-text-input" maxLength={40} placeholder="Home" value={customization.greeting} onChange={(event) => customize({ greeting: event.target.value })} />
+            <div className="custom-range-row">
+              <label htmlFor="profile-hue">Username colour</label>
+              <output htmlFor="profile-hue">{customization.profileHue}°</output>
+            </div>
+            <input id="profile-hue" className="hue-slider" type="range" aria-label="Username colour" min={0} max={360} value={customization.profileHue} onChange={(event) => customize({ profileHue: Number(event.target.value) })} style={{ "--current-hue": customization.profileHue } as React.CSSProperties} />
+          </section>
+          <button
+            type="button"
+            className="settings-reset"
+            onClick={() => setCustomization(defaultCustomization)}
+          >
+            Reset appearance and layout
+          </button>
           <div className="info-card">
             <ShieldCheck size={23} strokeWidth={1.4} />
             <div>
