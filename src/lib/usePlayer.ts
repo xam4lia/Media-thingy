@@ -4,6 +4,9 @@ import { getTrackBlob, type Track } from "./library";
 export type RepeatMode = "off" | "all" | "one";
 export type BeatMode = "off" | "soft" | "strong" | "strobe";
 
+const EQUALIZER_FREQUENCIES = [60, 170, 350, 1000, 3500, 10000] as const;
+const FLAT_EQUALIZER = [0, 0, 0, 0, 0, 0] as const;
+
 interface PlayerState {
   current: Track | null;
   playing: boolean;
@@ -40,6 +43,7 @@ function playbackMessage(error: unknown) {
 
 export function usePlayer(
   beatMode: BeatMode = "off",
+  equalizerGains: readonly number[] = FLAT_EQUALIZER,
   onTrackStarted?: (track: Track) => void,
 ) {
   const [state, setState] = useState<PlayerState>(() => ({
@@ -66,18 +70,26 @@ export function usePlayer(
   const toggleRef = useRef<() => void>(() => {});
   const mountedRef = useRef(false);
   const beatModeRef = useRef(beatMode);
+  const equalizerGainsRef = useRef<readonly number[]>(equalizerGains);
   const onTrackStartedRef = useRef(onTrackStarted);
-  const prepareBeatGlowRef = useRef<() => Promise<void>>(async () => {});
+  const prepareAudioGraphRef = useRef<() => Promise<void>>(async () => {});
+  const applyEqualizerRef = useRef<() => void>(() => {});
 
   onTrackStartedRef.current = onTrackStarted;
 
   useEffect(() => {
     beatModeRef.current = beatMode;
     if (beatMode !== "off" && stateRef.current.playing)
-      void prepareBeatGlowRef.current();
+      void prepareAudioGraphRef.current();
     if (beatMode === "off")
       document.documentElement.style.setProperty("--beat-pulse", "0");
   }, [beatMode]);
+
+  useEffect(() => {
+    equalizerGainsRef.current = equalizerGains;
+    applyEqualizerRef.current();
+    if (stateRef.current.playing) void prepareAudioGraphRef.current();
+  }, [equalizerGains]);
 
   const update = useCallback((patch: Partial<PlayerState>) => {
     stateRef.current = { ...stateRef.current, ...patch };
@@ -89,7 +101,7 @@ export function usePlayer(
       const audio = audioRef.current;
       if (!audio || !wantsPlaybackRef.current) return;
       try {
-        if (beatModeRef.current !== "off") await prepareBeatGlowRef.current();
+        await prepareAudioGraphRef.current();
         await audio.play();
         if (request === requestRef.current)
           update({ loading: false, error: null });
@@ -393,6 +405,7 @@ export function usePlayer(
     audioRef.current = audio;
 
     let audioContext: AudioContext | null = null;
+    let equalizerFilters: BiquadFilterNode[] = [];
     let analyser: AnalyserNode | null = null;
     let spectrum: Uint8Array<ArrayBuffer> | null = null;
     let beatFrame = 0;
@@ -458,12 +471,30 @@ export function usePlayer(
     const startBeatGlow = () => {
       if (!beatFrame) beatFrame = requestAnimationFrame(drawBeatGlow);
     };
-    const prepareBeatGlow = async () => {
+    const applyEqualizer = () => {
+      if (!audioContext || !equalizerFilters.length) return;
+      equalizerFilters.forEach((filter, index) => {
+        const gain = Math.max(
+          -12,
+          Math.min(12, Number(equalizerGainsRef.current[index]) || 0),
+        );
+        filter.gain.setTargetAtTime(gain, audioContext!.currentTime, 0.015);
+      });
+    };
+    applyEqualizerRef.current = applyEqualizer;
+    const prepareAudioGraph = async () => {
+      const equalizerIsActive = equalizerGainsRef.current.some(
+        (gain) => Math.abs(Number(gain) || 0) > 0.01,
+      );
       if (
-        beatModeRef.current === "off" ||
-        matchMedia("(prefers-reduced-motion: reduce)").matches ||
-        typeof AudioContext === "undefined"
+        !audioContext &&
+        beatModeRef.current === "off" &&
+        !equalizerIsActive
       ) {
+        stopBeatGlow();
+        return;
+      }
+      if (typeof AudioContext === "undefined") {
         stopBeatGlow();
         return;
       }
@@ -475,16 +506,46 @@ export function usePlayer(
           analyser.smoothingTimeConstant = 0.45;
           spectrum = new Uint8Array(analyser.frequencyBinCount);
           const source = audioContext.createMediaElementSource(audio);
-          source.connect(analyser);
+          equalizerFilters = EQUALIZER_FREQUENCIES.map((frequency, index) => {
+            const filter = audioContext!.createBiquadFilter();
+            filter.type =
+              index === 0
+                ? "lowshelf"
+                : index === EQUALIZER_FREQUENCIES.length - 1
+                  ? "highshelf"
+                  : "peaking";
+            filter.frequency.value = frequency;
+            if (filter.type === "peaking") filter.Q.value = 0.9;
+            return filter;
+          });
+          const limiter = audioContext.createDynamicsCompressor();
+          limiter.threshold.value = -6;
+          limiter.knee.value = 16;
+          limiter.ratio.value = 5;
+          limiter.attack.value = 0.005;
+          limiter.release.value = 0.2;
+          source.connect(equalizerFilters[0]);
+          equalizerFilters.forEach((filter, index) => {
+            const next = equalizerFilters[index + 1];
+            if (next) filter.connect(next);
+          });
+          equalizerFilters[equalizerFilters.length - 1].connect(limiter);
+          limiter.connect(analyser);
           analyser.connect(audioContext.destination);
         }
+        applyEqualizer();
         if (audioContext.state === "suspended") await audioContext.resume();
-        startBeatGlow();
+        if (
+          beatModeRef.current !== "off" &&
+          !matchMedia("(prefers-reduced-motion: reduce)").matches
+        )
+          startBeatGlow();
+        else stopBeatGlow();
       } catch {
         stopBeatGlow();
       }
     };
-    prepareBeatGlowRef.current = prepareBeatGlow;
+    prepareAudioGraphRef.current = prepareAudioGraph;
 
     const timeUpdate = () => update({ currentTime: audio.currentTime || 0 });
     const metadata = () => {
@@ -497,7 +558,7 @@ export function usePlayer(
         countedRequest = requestRef.current;
         onTrackStartedRef.current?.(track);
       }
-      void prepareBeatGlow();
+      void prepareAudioGraph();
     };
     const pause = () => {
       stopBeatGlow();
@@ -569,7 +630,8 @@ export function usePlayer(
       audio.removeAttribute("src");
       audio.load();
       stopBeatGlow();
-      prepareBeatGlowRef.current = async () => {};
+      prepareAudioGraphRef.current = async () => {};
+      applyEqualizerRef.current = () => {};
       if (audioContext) void audioContext.close();
       if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
       objectUrlRef.current = null;

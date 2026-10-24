@@ -135,11 +135,21 @@ type View = "home" | "library" | "favorites" | string;
 type PlayCounts = Record<string, number>;
 type DailyListening = { date: string; tracks: PlayCounts };
 type HomeSection = "weekly" | "top" | "rotation";
+type EqualizerPreset =
+  | "flat"
+  | "high-bass"
+  | "vocal"
+  | "treble"
+  | "dance"
+  | "late-night"
+  | "custom";
 type Customization = {
   glass: number;
   accentHue: number;
   backgroundStyle: "liquid" | "gradient" | "solid" | "artwork" | "image";
   beatMode: BeatMode;
+  equalizerPreset: EqualizerPreset;
+  equalizerGains: number[];
   playerSize: "compact" | "standard" | "large";
   artworkShape: "square" | "rounded" | "circle";
   density: "compact" | "comfortable" | "spacious";
@@ -152,6 +162,26 @@ type Customization = {
   profileHue: number;
   profileImage: string;
 };
+const EQUALIZER_BANDS = [
+  { frequency: 60, label: "60 Hz" },
+  { frequency: 170, label: "170 Hz" },
+  { frequency: 350, label: "350 Hz" },
+  { frequency: 1000, label: "1 kHz" },
+  { frequency: 3500, label: "3.5 kHz" },
+  { frequency: 10000, label: "10 kHz" },
+] as const;
+const EQUALIZER_PRESETS: Array<{
+  id: Exclude<EqualizerPreset, "custom">;
+  label: string;
+  gains: number[];
+}> = [
+  { id: "flat", label: "Flat", gains: [0, 0, 0, 0, 0, 0] },
+  { id: "high-bass", label: "High Bass", gains: [10, 7, 3, 0, -2, -3] },
+  { id: "vocal", label: "Vocal", gains: [-2, -1, 1, 5, 4, 1] },
+  { id: "treble", label: "Treble", gains: [-2, -1, 0, 2, 5, 7] },
+  { id: "dance", label: "Dance", gains: [5, 3, -1, 2, 4, 3] },
+  { id: "late-night", label: "Late Night", gains: [3, 2, 1, -1, -3, -5] },
+];
 const TOP_SONGS_VIEW = "top-songs";
 const CUSTOMIZATION_KEY = "media-customization-v1";
 const defaultCustomization: Customization = {
@@ -159,6 +189,8 @@ const defaultCustomization: Customization = {
   accentHue: 205,
   backgroundStyle: "liquid",
   beatMode: "off",
+  equalizerPreset: "flat",
+  equalizerGains: [0, 0, 0, 0, 0, 0],
   playerSize: "standard",
   artworkShape: "rounded",
   density: "comfortable",
@@ -191,12 +223,20 @@ function store(key: string, value: unknown) {
 
 function savedCustomization(): Customization {
   const saved = readSaved<Partial<Customization>>(CUSTOMIZATION_KEY, {});
+  const equalizerGains =
+    Array.isArray(saved.equalizerGains) &&
+    saved.equalizerGains.length === EQUALIZER_BANDS.length
+      ? saved.equalizerGains.map((gain) =>
+          Math.max(-12, Math.min(12, Number(gain) || 0)),
+        )
+      : defaultCustomization.equalizerGains;
   return {
     ...defaultCustomization,
     ...saved,
     beatMode:
       saved.beatMode ??
       (readSaved("media-beat-glow", false) ? "strobe" : "off"),
+    equalizerGains,
     homeOrder:
       Array.isArray(saved.homeOrder) && saved.homeOrder.length === 3
         ? saved.homeOrder
@@ -647,13 +687,18 @@ export default function App() {
     },
     [remote],
   );
-  const player = usePlayer(customization.beatMode, recordPlay);
+  const player = usePlayer(
+    customization.beatMode,
+    customization.equalizerGains,
+    recordPlay,
+  );
 
   useEffect(() => {
     store(CUSTOMIZATION_KEY, customization);
     const root = document.documentElement;
     root.dataset.beatGlow = customization.beatMode === "off" ? "off" : "on";
     root.dataset.beatMode = customization.beatMode;
+    root.dataset.equalizer = customization.equalizerPreset;
     root.dataset.backgroundStyle = customization.backgroundStyle;
     root.dataset.playerSize = customization.playerSize;
     root.dataset.artworkShape = customization.artworkShape;
@@ -2978,6 +3023,82 @@ export default function App() {
               ))}
             </div>
             <p className="settings-hint">Interface size above controls text and control size; spacing changes the room between items.</p>
+          </section>
+          <section className="settings-section" aria-labelledby="equalizer-heading">
+            <div className="settings-section-heading">
+              <div>
+                <h3 id="equalizer-heading">Equaliser</h3>
+                <p>Shape the sound with a preset or tune each frequency.</p>
+              </div>
+              <output aria-live="polite">
+                {customization.equalizerPreset === "custom"
+                  ? "Custom"
+                  : EQUALIZER_PRESETS.find(
+                      (preset) => preset.id === customization.equalizerPreset,
+                    )?.label}
+              </output>
+            </div>
+            <div className="choice-grid equalizer-presets">
+              {EQUALIZER_PRESETS.map((preset) => (
+                <button
+                  type="button"
+                  key={preset.id}
+                  aria-label={`Use ${preset.label} equaliser`}
+                  aria-pressed={customization.equalizerPreset === preset.id}
+                  onClick={() =>
+                    customize({
+                      equalizerPreset: preset.id,
+                      equalizerGains: [...preset.gains],
+                    })
+                  }
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+            <div className="equalizer-bands">
+              {EQUALIZER_BANDS.map((band, index) => {
+                const gain = customization.equalizerGains[index] ?? 0;
+                return (
+                  <div className="equalizer-band" key={band.frequency}>
+                    <label htmlFor={`equalizer-${band.frequency}`}>
+                      {band.label}
+                    </label>
+                    <input
+                      id={`equalizer-${band.frequency}`}
+                      type="range"
+                      aria-label={`${band.label} equaliser band`}
+                      min={-12}
+                      max={12}
+                      step={1}
+                      value={gain}
+                      onChange={(event) => {
+                        const equalizerGains = [
+                          ...customization.equalizerGains,
+                        ];
+                        equalizerGains[index] = Number(event.target.value);
+                        customize({
+                          equalizerPreset: "custom",
+                          equalizerGains,
+                        });
+                      }}
+                      style={
+                        {
+                          "--progress": `${((gain + 12) / 24) * 100}%`,
+                        } as React.CSSProperties
+                      }
+                    />
+                    <output htmlFor={`equalizer-${band.frequency}`}>
+                      {gain > 0 ? "+" : ""}{gain} dB
+                    </output>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="settings-hint">
+              High Bass strongly lifts the low end. Changes apply to the song
+              playing now and stay saved on this device.
+            </p>
           </section>
           <section
             className="settings-section hue-settings"

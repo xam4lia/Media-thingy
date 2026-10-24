@@ -2047,6 +2047,49 @@ input[type="range"]::-moz-range-thumb {
   background: var(--primary);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
+.equalizer-presets {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 0.875rem;
+}
+.equalizer-bands {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+  padding: 0.875rem;
+  border: 1px solid var(--glass-edge);
+  border-radius: 0.9rem;
+  background: var(--surface);
+}
+.equalizer-band {
+  display: grid;
+  grid-template-columns: 3.25rem minmax(0, 1fr) 2.75rem;
+  align-items: center;
+  gap: 0.65rem;
+}
+.equalizer-band label,
+.equalizer-band output,
+.settings-section-heading > output {
+  color: var(--text-secondary);
+  font-size: 0.58rem;
+  font-variant-numeric: tabular-nums;
+}
+.equalizer-band output {
+  color: var(--ink);
+  text-align: right;
+}
+.equalizer-band input[type="range"] {
+  width: 100%;
+  height: 0.25rem;
+}
+.equalizer-band input[type="range"]::-webkit-slider-thumb {
+  width: 0.75rem;
+  height: 0.75rem;
+  opacity: 1;
+}
+.equalizer-band input[type="range"]::-moz-range-thumb {
+  width: 0.75rem;
+  height: 0.75rem;
+}
 .custom-range-row {
   display: flex;
   align-items: center;

@@ -322,6 +322,32 @@ test('beat glow follows playback, stops when paused, and remembers its setting',
   await expect(beatGlow).toHaveAttribute('aria-pressed', 'true')
 })
 
+test('equaliser presets shape playback, allow custom bands, and persist', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Open settings', exact: true }).click()
+  const settings = page.getByRole('dialog', { name: 'Settings', exact: true })
+  const highBass = settings.getByRole('button', { name: 'Use High Bass equaliser', exact: true })
+  await highBass.click()
+  await expect(highBass).toHaveAttribute('aria-pressed', 'true')
+  await expect(settings.getByRole('slider', { name: '60 Hz equaliser band', exact: true })).toHaveValue('10')
+  await expect(settings.getByRole('slider', { name: '170 Hz equaliser band', exact: true })).toHaveValue('7')
+  await expect(page.locator('html')).toHaveAttribute('data-equalizer', 'high-bass')
+  await settings.getByRole('button', { name: 'Close dialog', exact: true }).click()
+
+  await demoSong(page).getByRole('button', { name: 'Play Soft Focus by media originals', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Pause playback', exact: true })).toBeVisible()
+  await expect.poll(async () => Number(await page.getByRole('slider', { name: 'Seek playback', exact: true }).inputValue())).toBeGreaterThan(0.25)
+  await page.getByRole('button', { name: 'Pause playback', exact: true }).click()
+
+  await page.reload()
+  await expect(page.locator('html')).toHaveAttribute('data-equalizer', 'high-bass')
+  await page.getByRole('button', { name: 'Open settings', exact: true }).click()
+  await expect(settings.getByRole('slider', { name: '60 Hz equaliser band', exact: true })).toHaveValue('10')
+  await setRange(page, '60 Hz equaliser band', 8)
+  await expect(page.locator('html')).toHaveAttribute('data-equalizer', 'custom')
+  await expect(highBass).toHaveAttribute('aria-pressed', 'false')
+})
+
 test('appearance, layout, background, and profile customisation persist together', async ({ page }) => {
   await page.goto('/')
   const photo = await page.screenshot({ clip: { x: 0, y: 0, width: 120, height: 90 } })
